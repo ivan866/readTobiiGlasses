@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<settings>
+	<file id="N" type="ey" path="Pears22N-ey.mp4" zeroTime="4:28.640"/>
+	<file id="N" type="gaze" path="pears22N Data Export-fake.tsv" zeroTime="ey"/>
+	<file id="N" type="voc" path="pears22N-voc.TextGrid"/>
+	<file id="N" type="manu" path="pears22N-manu.txt"/>
+	<file id="N" type="ceph" path="pears22N-ceph-monologue.txt"/>
+	<file id="N" type="ocul" path="pears22N-ocul.xls"/>
+	
+	<file id="C" type="voc" path="pears22C-voc.TextGrid"/>
+	<file id="C" type="manu" path="pears22C-manu.txt"/>
+	
+	<file id="R" type="ey" path="Pears22R-ey.mp4" zeroTime="1:34.560"/>
+	<file id="R" type="gazeNOT" path="pears22R Data Export-fake.tsv" zeroTime="ey"/>
+	<file id="R" type="voc" path="pears22R-voc.TextGrid"/>
+	<file id="R" type="manu" path="pears22R-manu.txt"/>
+	<file id="R" type="ceph" path="pears22R-ceph-monologue.txt"/>
+	<file id="R" type="ocul" path="pears22R-ocul.xls"/>
+	
+	
+	<interval id="tell" duration="3:37.960"/>
+	<interval id="conv" duration="8:48.280"/>
+	<interval id="retell" duration="6:01.620"/>
+</settings>
