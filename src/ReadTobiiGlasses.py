@@ -1,7 +1,14 @@
 import argparse
 from datetime import datetime
+import sys
+import webbrowser
+
+import logging
 
 from tkinter import *
+
+import matplotlib
+matplotlib.rcParams['backend'] = "TkAgg"
 
 from SettingsReader import SettingsReader
 from data.MultiData import MultiData
@@ -9,6 +16,9 @@ from data.DataReader import DataReader
 from data.DataExporter import DataExporter
 from stats.Stats import Stats
 from viz.plots.GazePlot import StubPlot
+from viz.plots.TempoPlot import TempoPlot
+from viz.plots.SpatialPlot import SpatialPlot
+from viz.plots.CombiPlot import CombiPlot
 
 
 
@@ -21,8 +31,19 @@ class ReadTobiiGlasses():
     
     """
 
-    def __init__(self):
-        """Setup application and populate menu."""
+    def __init__(self,gui:bool=True):
+        """Setup application and populate menu.
+        
+        :param gui: Whether to start gui.
+        """
+        self.LOG_FORMAT="%(levelname)s %(asctime)s %(pathname)s at %(lineno)s - %(message)s"
+        logging.basicConfig(filename='readTobiiGlasses.log',
+                            level=logging.DEBUG,
+                            format=self.LOG_FORMAT)
+        self.logger=logging.getLogger()
+
+
+        self.logger.debug('creating tk root..')
         self.root = Tk()
         self.root.geometry('640x400')
         self.root.title('Read Tobii Glasses')
@@ -31,7 +52,8 @@ class ReadTobiiGlasses():
         self.root.config(menu=self.rootMenu)
 
 
-        self.status = Label(self.root, bd=1, relief=SUNKEN, anchor=W)
+        self.logger.debug('creating report and status widgets...')
+        self.status = Label(self.root, bd=1, relief=RIDGE, anchor=W)
         self.status.config(text='Please select settings.')
         self.status.pack(side=BOTTOM,fill=X)
 
@@ -42,15 +64,19 @@ class ReadTobiiGlasses():
 
 
         #setup other classes
+        self.logger.debug('instantiating classes...')
         self.settingsReader = SettingsReader(self)
         self.multiData = MultiData(self)
         self.dataReader = DataReader(self)
         self.dataExporter = DataExporter(self)
 
         self.stats = Stats(self)
-        self.gazePlot = StubPlot(self)
+        self.stubPlot = StubPlot(self)
+        self.tempoPlot = TempoPlot(self)
+        self.spatialPlot = SpatialPlot(self)
+        self.combiPlot = CombiPlot(self)
 
-
+        self.logger.debug('populating menus...')
         #populate menu
         settingsMenu = Menu(self.rootMenu, tearoff=0)
         settingsMenu.add_command(label="Select...", command=self.settingsReader.select)
@@ -59,7 +85,7 @@ class ReadTobiiGlasses():
 
         dataMenu = Menu(self.rootMenu, tearoff=0)
         dataMenu.add_command(label="Parse settings and read data", command=lambda: self.dataReader.read(self.settingsReader,self.multiData))
-        dataMenu.add_command(label="Validation", command=self.multiData.validate)
+        dataMenu.add_command(label="Summary and validation", command=self.multiData.validate)
         exportMenu = Menu(dataMenu, tearoff=0)
         exportMenu.add_command(label="Fixations to Excel", command=lambda: self.dataExporter.exportFixations(self.multiData,'xls'))
         exportMenu.add_command(label="Fixations to CSV", command=lambda: self.dataExporter.exportFixations(self.multiData,'csv'))
@@ -75,18 +101,24 @@ class ReadTobiiGlasses():
 
         vizMenu = Menu(self.rootMenu, tearoff=0)
         plotMenu = Menu(vizMenu, tearoff=0)
-        plotMenu.add_command(label="Temporal", command=self.gazePlot.draw)
-        plotMenu.add_command(label="Spatial", command=self.gazePlot.draw)
-        plotMenu.add_command(label="Combined", command=self.gazePlot.draw)
+        plotMenu.add_command(label="Temporal", command=lambda: self.tempoPlot.draw(self.multiData))
+        plotMenu.add_command(label="Spatial", command=lambda: self.spatialPlot.draw(self.multiData))
+        plotMenu.add_command(label="Combined", command=lambda: self.combiPlot.draw(self.multiData))
         vizMenu.add_cascade(label="Plots", menu=plotMenu)
-        vizMenu.add_command(label="Gaze overlay", command=self.gazePlot.draw)
-        vizMenu.add_command(label="3D gaze vectors", command=self.gazePlot.draw)
-        vizMenu.add_command(label="Heatmap", command=self.gazePlot.draw)
-        vizMenu.add_command(label="Intersection matrix", command=self.gazePlot.draw)
+        vizMenu.add_command(label="Gaze overlay animation", command=self.stubPlot.draw)
+        vizMenu.add_command(label="3D gaze vectors", command=self.stubPlot.draw)
+        vizMenu.add_command(label="Heatmap", command=self.stubPlot.draw)
+        vizMenu.add_command(label="Intersection matrix", command=self.stubPlot.draw)
         self.rootMenu.add_cascade(label="Visualizations", menu=vizMenu)
 
+        helpMenu = Menu(self.rootMenu, tearoff=0)
+        helpMenu.add_command(label="Wiki", command=self.gotoWiki)
+        helpMenu.add_command(label="GitHub", command=self.gotoRepo)
+        self.rootMenu.add_cascade(label="Help", menu=helpMenu)
 
-        self.root.mainloop()
+        self.logger.debug('starting tk main loop...')
+        if gui:
+            self.root.mainloop()
 
 
 
@@ -108,24 +140,40 @@ class ReadTobiiGlasses():
         :param text: New content for status bar.
         :return: 
         """
+        self.logger.info(text)
         self.appendReport(text)
         self.status.config(text=text)
         self.root.update_idletasks()
 
+    def gotoWiki(self)->None:
+        """Opens wiki page on GitHub.
+        
+        :return: 
+        """
+        webbrowser.open('http://github.com/ivan866/readTobiiGlasses/wiki')
+
+    def gotoRepo(self)->None:
+        """Opens project page on GitHub.
+        
+        :return: 
+        """
+        webbrowser.open('http://github.com/ivan866/readTobiiGlasses')
 
 
 def main():
-    rtg=ReadTobiiGlasses()
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('settings', default='', help='Path to settings XML file')
+    parser.add_argument('-o', '--settings', help='Path to settings XML file')
     args = parser.parse_args()
 
     if args.settings:
+        rtg = ReadTobiiGlasses(gui=False)
+        rtg.logger.debug(rtg.settingsReader)
         rtg.settingsReader.select(args.settings)
-        rtg.dataReader.read()
-        rtg.stats.descriptive()
-        rtg.stats.save()
+        rtg.dataReader.read(rtg.settingsReader,rtg.multiData)
+        rtg.stats.descriptive(rtg.multiData)
+        sys.exit()
+    else:
+        ReadTobiiGlasses()
 
 if __name__ == "__main__":
     main()

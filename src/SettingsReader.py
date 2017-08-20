@@ -49,12 +49,14 @@ class SettingsReader:
         else:
             self.settingsFile=file
 
-        self.dataDir=os.path.dirname(self.settingsFile)
-        self.topWindow.setStatus('Settings file selected (not read or modified yet).')
+        if self.settingsFile:
+            self.dataDir=os.path.dirname(self.settingsFile)
+            self.topWindow.setStatus('Settings file selected (not read or modified yet).')
 
 
     def read(self)->None:
         """Actually reads and parses xml file contents."""
+        self.topWindow.logger.debug('reading settings...')
         self.settingsTree = ET.parse(self.settingsFile)
         self.settings = self.settingsTree.getroot()
         self.topWindow.setStatus('Settings parsed ('+self.settingsFile+').')
@@ -97,6 +99,7 @@ class SettingsReader:
         :param id: id string from settings.
         :return: ElementTree.Element
         """
+        self.topWindow.logger.debug('get type by id')
         return self.settings.find("file[@type='" + type + "'][@id='"+id+"']")
 
     def getZeroTimeById(self,type:str,id:str,parse:bool=True) -> object:
@@ -125,6 +128,7 @@ class SettingsReader:
         :param id: id string from interval.
         :return: ElementTree.Element
         """
+        self.topWindow.logger.debug('get interval by id')
         return self.settings.find("interval[@id='"+id+"']")
 
     def getIntervals(self) -> list:
@@ -144,6 +148,7 @@ class SettingsReader:
         :param format: bool whether to convert time to str or not.
         :return: Start time of interval in timedelta object.
         """
+        self.topWindow.logger.debug('get start time by id')
         ints=self.getIntervals()
         startTime=Utils.parseTime(0)
         thisId=None
@@ -191,12 +196,13 @@ class SettingsReader:
 
 
     def check(self) -> bool:
-        """Returns True if settings are already read, False otherwise.
+        """Returns True if settings are already selected, False otherwise.
         
-        :return: A bool representing presence of settings data in memory.
+        :return: A bool representing presence of settings file path.
         """
-        if self.settings:
+        self.topWindow.logger.debug('check settings')
+        if self.settingsFile:
             return True
         else:
-            self.topWindow.setStatus('Read settings and data first.')
+            self.topWindow.setStatus('Select settings first!')
             return False

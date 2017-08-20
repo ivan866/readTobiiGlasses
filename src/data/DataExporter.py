@@ -20,6 +20,7 @@ class DataExporter():
         :param format: 'xls' or 'csv'.
         :return: None.
         """
+        self.topWindow.logger.debug('export fixations')
         if self.settingsReader.check() and multiData.check():
             written = False
             for file in self.settingsReader.getTypes('gaze'):
@@ -42,6 +43,7 @@ class DataExporter():
 
     def exportGyro(self,multiData) -> None:
         """Writes gyroscope and accelerometer data to files."""
+        self.topWindow.logger.debug('export gyro')
         if self.settingsReader.check() and multiData.check():
             written = 0
             for file in self.settingsReader.getTypes('gaze'):

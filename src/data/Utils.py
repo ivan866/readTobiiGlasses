@@ -15,14 +15,14 @@ def guessTimeFormat(val: object)-> str:
     if type(val) is not str:
         val=str(val)
 
-    formats = ['%H:%M:%S.%f', '%M:%S.%f', '%S.%f', '%S']
+    formats = ['%H:%M:%S.%f', '%M:%S.%f', '%M:%S', '%S.%f', '%S']
     for fmt in formats:
         try:
             datetime.strptime(val, fmt)
         except ValueError:
             continue
         break
-    print('Time format of ' + val + ' string is guessed as ' + fmt + '.')
+    #print('Time format of ' + val + ' string is guessed as ' + fmt + '.')
     return fmt
 
 
@@ -46,7 +46,11 @@ def parseTimeV(data:Series)->Series:
     :param data: pandas Series object.
     :return: Same object with values converted to timedelta.
     """
-    return pandas.to_datetime(data.astype(str), infer_datetime_format=True)-date.today()
+    if data.name=='Recording timestamp':
+        return pandas.to_timedelta(data, unit='s')
+    #TODO numpy.vectorize
+    else:
+        return pandas.to_datetime(data.astype(str), infer_datetime_format=True)-date.today()
 
 
 

@@ -1,7 +1,6 @@
 import os
 import re
 
-#import numpy
 import pandas
 
 
@@ -20,7 +19,11 @@ class DataReader():
         
         Depends on pandas module.
         """
-        settingsReader.read()
+        self.topWindow.logger.debug('reading data...')
+        if settingsReader.check():
+            settingsReader.read()
+        else:
+            return
 
         settingsGaze = settingsReader.getTypes('gaze')
         if len(settingsGaze):
@@ -47,7 +50,7 @@ class DataReader():
                 # оставляем достаточную точность
                 # gazeData=gazeData.round(6)
 
-
+                self.topWindow.logger.debug('gaze data read successfully')
                 # гироскоп и акселерометр пишутся не синфазно с трекером, вырезаем в отдельные таблицы
                 if multiData.hasAllColumns(['Gyro X','Gyro Y','Gyro Z'],file.get('id')):
                     gyro = gazeData[['Recording timestamp',
@@ -143,6 +146,7 @@ class DataReader():
 
 
         # читаем аннотации manu
+        self.topWindow.logger.debug('reading manu data...')
         settingsManu = settingsReader.getTypes('manu')
         if len(settingsManu):
             self.topWindow.setStatus('Reading manu annotations...')
@@ -156,6 +160,7 @@ class DataReader():
 
 
         # читаем аннотации ocul из excel
+        self.topWindow.logger.debug('reading ocul data...')
         settingsOcul = settingsReader.getTypes('ocul')
         if len(settingsOcul):
             self.topWindow.setStatus('Reading ocul annotations...')
@@ -169,6 +174,8 @@ class DataReader():
                                              parse_cols='B:E')
                 #при считывании из excel в строках могут оставаться знаки \t
                 oculData=oculData.applymap(lambda x: re.sub('\t(.*)', '\\1', str(x)))
+                oculData=oculData.astype({'Gaze event duration':int})
+                oculData['Gaze event duration'] /= 1000
                 multiData.setNode('ocul',file.get('id'),oculData)
         else:
             self.topWindow.setStatus('No ocul annotations specified in settings.')

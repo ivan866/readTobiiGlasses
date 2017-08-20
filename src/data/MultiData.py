@@ -40,6 +40,7 @@ class MultiData():
         :param data: object with some data, probably pandas dataframe or python list.
         :return: 
         """
+        self.topWindow.logger.debug('setting data node...')
         self.multiData[channel][id] = data
 
 
@@ -51,6 +52,7 @@ class MultiData():
         :param id: string of channel id from settings.
         :return: data object.
         """
+        self.topWindow.logger.debug('get channel by id')
         return self.multiData[channel][id]
 
 
@@ -64,26 +66,52 @@ class MultiData():
         :param timeEnd: timestamp to end data with in 'M:S.f' str or timedelta format.
         :return: Trimmed data.
         """
+        self.topWindow.logger.debug('get data between')
         #TODO determine where timestamp column is in data
         parsedTime=Utils.parseTimeV(data.iloc[:,0])
-        data.insert(1,'Timedelta',parsedTime)
+        try:
+            data.insert(1,'Timedelta',parsedTime)
+        except ValueError:
+            pass
 
         if type(timeStart) is not timedelta:
             timeStart=Utils.parseTime(timeStart)
         if type(timeEnd) is not timedelta:
             timeEnd=Utils.parseTime(timeEnd)
+        #TODO timedelta [:] indexing
+        return data.loc[(data['Timedelta']>=timeStart) & (data['Timedelta']<timeEnd)]
 
-        return data.iloc[(data['Timedelta']>=timeStart) & (data['Timedelta']<timeEnd)]
-
-    def getDataInterval(self,data:object,interval:str) -> object:
+    def getDataInterval(self,data:object,startFrom:object,interval:str) -> object:
         """Selects and returns data where timestamp is inside interval defined by its id name.
         
         :param data: data to trim from, usually after getChannelById method.
+        :param startFrom: Time value to start first interval from.
         :param interval: id of interval in str format from settings.
         :return: Trimmed data.
         """
-        startTime=self.settingsReader.getStartTimeById(interval)
-        endTime = self.settingsReader.getEndTimeById(interval)
+        if type(startFrom) is not timedelta:
+            startFrom=Utils.parseTime(startFrom)
+
+        startTime=self.settingsReader.getStartTimeById(interval)+startFrom
+        endTime = self.settingsReader.getEndTimeById(interval)+startFrom
+        return self.getDataBetween(data,startTime,endTime)
+
+    def getDataFromAll(self,data:object,startFrom:object) -> object:
+        """Selects and returns data from all intervals.
+        
+        :param data: data to trim from, usually after getChannelById method.
+        :param startFrom: Time value to start first interval from.
+        :return: Data trimmed exactly to all your intervals.
+        """
+        self.topWindow.logger.debug('get data from all')
+        if type(startFrom) is not timedelta:
+            startFrom=Utils.parseTime(startFrom)
+
+        ints = self.settingsReader.getIntervals()
+        intA = ints[0].get('id')
+        intZ = ints[-1].get('id')
+        startTime=self.settingsReader.getStartTimeById(intA)+startFrom
+        endTime = self.settingsReader.getEndTimeById(intZ)+startFrom
         return self.getDataBetween(data,startTime,endTime)
 
 
@@ -129,10 +157,11 @@ class MultiData():
         
         :return: True if it is, False otherwise.
         """
+        self.topWindow.logger.debug('check data')
         if self.multiData:
             return True
         else:
-            self.topWindow.setStatus('Read data first.')
+            self.topWindow.setStatus('Read data first!')
             return False
 
 
