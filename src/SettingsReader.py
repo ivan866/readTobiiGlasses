@@ -20,6 +20,7 @@ class SettingsReader:
 
 
     def __init__(self,topWindow):
+        #TODO refactor to singleton pattern
         self.topWindow=topWindow
         self.dataDir = None
         self.settingsFile = None

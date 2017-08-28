@@ -34,7 +34,10 @@ class Stats():
         :param on: Column to aggregate on.
         :return: data slice.
         """
+        #TODO отбрасывать интервалы trans?
+        #TODO change describe to agg(count,sum,etc.)
         self.topWindow.logger.debug('group by list and describe')
+        #data.fillna('<NA>',inplace=True)
         if type(groupby) is str:
             groupby=[groupby]
         if len(groupby):
@@ -99,6 +102,7 @@ class Stats():
         :return: 
         """
         self.topWindow.logger.debug('descriptive stats')
+        self.topWindow.setStatus('Gathering statistics... please wait.')
         now = datetime.now().strftime('%Y-%m-%d %H_%M_%S')
         dateTag = ET.Element('date')
         dateTag.text = now
@@ -142,14 +146,12 @@ class Stats():
         for channel in multiData.multiData['manu']:
             chData=multiData.getChannelById('manu', channel)
             data = multiData.tagIntervals(chData, 0)
+            #TODO проверить можно ли отбросить продублированные значения если не была снята галочка Repeat values of annotations
+            data.dropna(subset=(['mGesture']), inplace=True)
 
             file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('manu',channel).get('path'))[0]+'_report.xls'
             self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Duration - ss.msec'),
-                                         self.groupbyListAndDescribe(data, 'Interval', 'Duration - ss.msec'),
-                                         self.groupbyListAndDescribe(data, ['Interval', 'mLtPhases'], 'Duration - ss.msec'),
-                                         self.groupbyListAndDescribe(data, ['Interval', 'mRtPhases'], 'Duration - ss.msec'),
-                                         self.groupbyListAndDescribe(data, ['mLtPhases', 'mRtPhases'], 'Duration - ss.msec'),
-                                         self.groupbyListAndDescribe(data,['Interval', 'mLtPhases', 'mRtPhases'],'Duration - ss.msec')])
+                                         self.groupbyListAndDescribe(data, 'Interval', 'Duration - ss.msec')])
 
 
         for channel in multiData.multiData['ocul']:

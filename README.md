@@ -7,7 +7,7 @@
 
 Данные айтрекинга необходимо экспортировать через Tobii ProLab в формат tsv. При экспорте нужно отметить галочки для Gaze point, Gaze direction, Pupil diameter, фиксаций, гироскопа и акселерометра. Рекомендуется убрать галочки для Project name, Participant name, Export date, Recording duration, Fixation filter name, etc.
 
-Аннотации из ELAN необходимо экспортировать в формат txt (File>Export as>Tab-delimeted Text). Обязательно при экспорте отметить галочку Separate column for each tier.
+Аннотации из ELAN необходимо экспортировать в формат txt (File>Export as>Tab-delimeted Text). Обязательно при экспорте отметить галочки Separate column for each tier, Include time column for Begin time, Duration; Include time format ss.msec. ВАЖНО: обязательно снять галочку Repeat values of annotations spanning other annotations.
 
 Аннотации глаз типа ocul можно оставить в формате Excel.
 

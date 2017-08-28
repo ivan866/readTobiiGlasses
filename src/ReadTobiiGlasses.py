@@ -131,6 +131,7 @@ class ReadTobiiGlasses():
         :param text: Text to append.
         :return: 
         """
+        #TODO add colorize text
         now = datetime.now().strftime('%H:%M:%S')
         self.report.config(state=NORMAL)
         self.report.insert(END,now+' '+text+'\n')

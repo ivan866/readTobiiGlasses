@@ -34,6 +34,13 @@ class MultiData():
 
 
 
+    def reset(self)->None:
+        """Makes this multiData empty.
+        
+        :return: None.
+        """
+        self.__init__(self.topWindow)
+
     def setNode(self, channel: str, id: str, data: object) -> None:
         """Sets choosen node in hierarchy of multiData to given data object.
         

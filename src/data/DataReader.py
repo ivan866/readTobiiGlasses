@@ -41,6 +41,8 @@ class DataReader():
         else:
             return
 
+        multiData.reset()
+
 
         #читаем данные айтрекера
         settingsGaze = settingsReader.getTypes('gaze')
@@ -183,8 +185,9 @@ class DataReader():
                     skiprows=self.determineSkiprows(manuFile,'"#')
                     manuData = pandas.read_table(manuFile, skiprows=skiprows)
                     #названия столбцов не всегда одинаковые в разных записях
-                    manuData.rename(columns={col: re.sub('.*lt.*phases.*','mLtPhases',col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
-                    manuData.rename(columns={col: re.sub('.*rt.*phases.*', 'mRtPhases', col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
+                    manuData.rename(columns={col: re.sub('.*m.*gesture.*', 'mGesture', col, flags=re.IGNORECASE) for col in manuData.columns}, inplace=True)
+                    #manuData.rename(columns={col: re.sub('.*lt.*phases.*','mLtPhases',col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
+                    #manuData.rename(columns={col: re.sub('.*rt.*phases.*', 'mRtPhases', col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
                     multiData.setNode('manu',file.get('id'),manuData)
                 else:
                     self.topWindow.setStatus('Manu file specified in settings (' + os.path.basename(manuFile) + ') does not exist!')
