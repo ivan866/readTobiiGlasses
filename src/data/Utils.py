@@ -46,7 +46,7 @@ def parseTimeV(data:Series)->Series:
     :param data: pandas Series object.
     :return: Same object with values converted to timedelta.
     """
-    if data.name=='Recording timestamp':
+    if data.name=='Recording timestamp' or data.name=='Begin Time - ss.msec':
         return pandas.to_timedelta(data, unit='s')
     #TODO numpy.vectorize
     else:

@@ -20,6 +20,7 @@ class DataExporter():
         :param format: 'xls' or 'csv'.
         :return: None.
         """
+		#TODO merge speaking and listening mode for each participant with fixation status (Kendon stats)
         self.topWindow.logger.debug('export fixations')
         if self.settingsReader.check() and multiData.check():
             written = False

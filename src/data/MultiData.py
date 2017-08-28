@@ -1,5 +1,7 @@
 from datetime import timedelta
 
+from pandas import DataFrame
+
 from SettingsReader import SettingsReader
 
 from data import Utils
@@ -96,23 +98,39 @@ class MultiData():
         endTime = self.settingsReader.getEndTimeById(interval)+startFrom
         return self.getDataBetween(data,startTime,endTime)
 
-    def getDataFromAll(self,data:object,startFrom:object) -> object:
-        """Selects and returns data from all intervals.
-        
-        :param data: data to trim from, usually after getChannelById method.
-        :param startFrom: Time value to start first interval from.
-        :return: Data trimmed exactly to all your intervals.
-        """
-        self.topWindow.logger.debug('get data from all')
-        if type(startFrom) is not timedelta:
-            startFrom=Utils.parseTime(startFrom)
+    # def getDataFromAll(self,data:object,startFrom:object) -> object:
+    #     """Selects and returns data from all intervals.
+    #
+    #     :param data: data to trim from, usually after getChannelById method.
+    #     :param startFrom: Time value to start first interval from.
+    #     :return: Data trimmed exactly to all your intervals.
+    #     """
+    #     self.topWindow.logger.debug('get data from all')
+    #     if type(startFrom) is not timedelta:
+    #         startFrom=Utils.parseTime(startFrom)
+    #
+    #     ints = self.settingsReader.getIntervals()
+    #     intA = ints[0].get('id')
+    #     intZ = ints[-1].get('id')
+    #     startTime=self.settingsReader.getStartTimeById(intA)+startFrom
+    #     endTime = self.settingsReader.getEndTimeById(intZ)+startFrom
+    #     return self.getDataBetween(data,startTime,endTime)
 
-        ints = self.settingsReader.getIntervals()
-        intA = ints[0].get('id')
-        intZ = ints[-1].get('id')
-        startTime=self.settingsReader.getStartTimeById(intA)+startFrom
-        endTime = self.settingsReader.getEndTimeById(intZ)+startFrom
-        return self.getDataBetween(data,startTime,endTime)
+    def tagIntervals(self,chData:object,startFrom:object)->DataFrame:
+        """Tags given data by intervals, then returns a single dataframe.
+        
+        :param data: data to stack intervals from, usually after getChannelById method.
+        :param startFrom: zeroTime to start from.
+        :return: DataFrame object ready to group by intervals.
+        """
+        data=[]
+        for interval in self.settingsReader.getIntervals():
+            intData=self.getDataInterval(chData, startFrom, interval.get('id'))
+            intData.insert(2,'Interval',interval.get('id'))
+            data.append(intData)
+
+        data=data[0].append(data[1:])
+        return data
 
 
     def hasColumn(self,column:str,id:str) -> bool:

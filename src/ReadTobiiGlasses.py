@@ -36,6 +36,8 @@ class ReadTobiiGlasses():
         
         :param gui: Whether to start gui.
         """
+		#TODO CHANGES.TXT, study standard format
+        #TODO add INSTALLING
         self.LOG_FORMAT="%(levelname)s %(asctime)s %(pathname)s at %(lineno)s - %(message)s"
         logging.basicConfig(filename='readTobiiGlasses.log',
                             level=logging.DEBUG,
@@ -90,6 +92,7 @@ class ReadTobiiGlasses():
         exportMenu.add_command(label="Fixations to Excel", command=lambda: self.dataExporter.exportFixations(self.multiData,'xls'))
         exportMenu.add_command(label="Fixations to CSV", command=lambda: self.dataExporter.exportFixations(self.multiData,'csv'))
         exportMenu.add_command(label="Gyroscope data", command=lambda: self.dataExporter.exportGyro(self.multiData))
+        exportMenu.add_command(label="Voc/ocul combined", command=lambda: self.setStatus('Not implemented.'))
         dataMenu.add_cascade(label="Export", menu=exportMenu)
         self.rootMenu.add_cascade(label="Data", menu=dataMenu)
 
@@ -112,8 +115,8 @@ class ReadTobiiGlasses():
         self.rootMenu.add_cascade(label="Visualizations", menu=vizMenu)
 
         helpMenu = Menu(self.rootMenu, tearoff=0)
-        helpMenu.add_command(label="Wiki", command=self.gotoWiki)
-        helpMenu.add_command(label="GitHub", command=self.gotoRepo)
+        helpMenu.add_command(label="Wiki", command=lambda: self.gotoWeb('wiki'))
+        helpMenu.add_command(label="GitHub", command=lambda: self.gotoWeb('repo'))
         self.rootMenu.add_cascade(label="Help", menu=helpMenu)
 
         self.logger.debug('starting tk main loop...')
@@ -145,19 +148,17 @@ class ReadTobiiGlasses():
         self.status.config(text=text)
         self.root.update_idletasks()
 
-    def gotoWiki(self)->None:
+    def gotoWeb(self,page:str)->None:
         """Opens wiki page on GitHub.
         
+        :param page: Page tag to open browser for.
         :return: 
         """
-        webbrowser.open('http://github.com/ivan866/readTobiiGlasses/wiki')
+        if page=='wiki':
+            webbrowser.open('http://github.com/ivan866/readTobiiGlasses/wiki')
+        elif page=='repo':
+            webbrowser.open('http://github.com/ivan866/readTobiiGlasses')
 
-    def gotoRepo(self)->None:
-        """Opens project page on GitHub.
-        
-        :return: 
-        """
-        webbrowser.open('http://github.com/ivan866/readTobiiGlasses')
 
 
 def main():

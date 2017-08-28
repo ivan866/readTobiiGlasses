@@ -5,6 +5,8 @@ from tkinter import *
 
 import xml.etree.ElementTree as ET
 
+import numpy
+
 import pandas
 from pandas import DataFrame
 from pandas import Series
@@ -16,6 +18,8 @@ from SettingsReader import SettingsReader
 class Stats():
 
     """Statistical methods for multidiscourse data."""
+
+    #TODO add sequence search for face-hands-face-hands patterns in ocul
 
     def __init__(self,topWindow):
         self.topWindow = topWindow
@@ -31,6 +35,8 @@ class Stats():
         :return: data slice.
         """
         self.topWindow.logger.debug('group by list and describe')
+        if type(groupby) is str:
+            groupby=[groupby]
         if len(groupby):
             sliced = data.groupby(groupby, sort=False)[on].describe()
             slicedCountRat = sliced['count'] / sliced['count'].sum()
@@ -39,8 +45,21 @@ class Stats():
             sliced.insert(1, 'count ratio', value=slicedCountRat)
             sliced.insert(2, 'total', value=slicedSum)
             sliced.insert(3, 'total ratio', value=slicedSumRat)
+            # считаем ratio от длительности интервала
+            if ('Interval' in str(groupby)) and (len(groupby) == 1):
+                recordDur = self.settingsReader.totalDuration()
+                #не все интервалы могут присутствовать в срезе
+                durs=[]
+                for interval in list(sliced.index):
+                    durs.append(self.settingsReader.getDurationById(interval))
+                durs=Series(durs)/numpy.timedelta64(1,'s')
+                durs.index = sliced.index
+                slicedTotalRatByDur = sliced['total'] / durs
+                sliced.insert(0, 'duration', value=durs)
+                sliced.insert(1, 'duration ratio', value=durs/recordDur.total_seconds())
+                sliced.insert(6, 'total ratio by duration', value=slicedTotalRatByDur)
             #считаем ratio по интервалам
-            if ('Interval' in str(groupby)) and (type(groupby) is list and len(groupby)>1):
+            elif ('Interval' in str(groupby)) and (len(groupby)>1):
                 ints=[int for int, *level in list(sliced.index)]
                 slicedCountRatByInt=sliced['count'] / list(sliced['count'].groupby('Interval').sum()[ints])
                 slicedSumRatByInt = slicedSum / list(slicedSum.groupby('Interval').sum()[ints])
@@ -50,7 +69,9 @@ class Stats():
             sliced = data[on].describe()
             slicedSum = data[on].sum()
             sliced=DataFrame(sliced).transpose()
-            sliced.insert(1, 'total', value=slicedSum)
+            recordDur=self.settingsReader.totalDuration()
+            sliced.insert(0, 'duration', value=recordDur.total_seconds())
+            sliced.insert(2, 'total', value=slicedSum)
 
         return sliced
 
@@ -69,6 +90,7 @@ class Stats():
             startrow=startrow+df.shape[0]+3
             writer.save()
 
+
     def descriptive(self,multiData) -> None:
         """Basic data summary.
         
@@ -85,18 +107,55 @@ class Stats():
         saveDir = self.settingsReader.dataDir + '/stats_' + now
         os.mkdir(saveDir)
         self.topWindow.logger.debug('iterating through data channels...')
+
+
         #статистика
+        for channel in multiData.multiData['fixations']:
+            chData = multiData.getChannelById('fixations', channel)
+            startFrom = self.settingsReader.getZeroTimeById('ey', channel)
+            #allData=multiData.getDataFromAll(chData,startFrom)
+            data=multiData.tagIntervals(chData,startFrom)
+
+            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_fixations report.xls'
+            self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
+                                         self.groupbyListAndDescribe(data, 'Interval', 'Gaze event duration')])
+
+        for channel in multiData.multiData['saccades']:
+            chData = multiData.getChannelById('saccades', channel)
+            startFrom = self.settingsReader.getZeroTimeById('ey', channel)
+            data=multiData.tagIntervals(chData,startFrom)
+
+            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_saccades report.xls'
+            self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
+                                         self.groupbyListAndDescribe(data, 'Interval', 'Gaze event duration')])
+
+        for channel in multiData.multiData['eyesNotFounds']:
+            chData = multiData.getChannelById('eyesNotFounds', channel)
+            startFrom = self.settingsReader.getZeroTimeById('ey', channel)
+            data=multiData.tagIntervals(chData,startFrom)
+
+            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_eyesNotFounds report.xls'
+            self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
+                                         self.groupbyListAndDescribe(data, 'Interval', 'Gaze event duration')])
+
+
+        for channel in multiData.multiData['manu']:
+            chData=multiData.getChannelById('manu', channel)
+            data = multiData.tagIntervals(chData, 0)
+
+            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('manu',channel).get('path'))[0]+'_report.xls'
+            self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Duration - ss.msec'),
+                                         self.groupbyListAndDescribe(data, 'Interval', 'Duration - ss.msec'),
+                                         self.groupbyListAndDescribe(data, ['Interval', 'mLtPhases'], 'Duration - ss.msec'),
+                                         self.groupbyListAndDescribe(data, ['Interval', 'mRtPhases'], 'Duration - ss.msec'),
+                                         self.groupbyListAndDescribe(data, ['mLtPhases', 'mRtPhases'], 'Duration - ss.msec'),
+                                         self.groupbyListAndDescribe(data,['Interval', 'mLtPhases', 'mRtPhases'],'Duration - ss.msec')])
+
+
         for channel in multiData.multiData['ocul']:
             chData=multiData.getChannelById('ocul', channel)
-            startFrom=self.settingsReader.getZeroTimeById('ey',channel)
-            #allData=multiData.getDataFromAll(data,startFrom)
-            data=[]
-            for interval in self.settingsReader.getIntervals():
-                intData=multiData.getDataInterval(chData, startFrom, interval.get('id'))
-                intData.insert(2,'Interval',interval.get('id'))
-                data.append(intData)
-
-            data=data[0].append(data[1:])
+            startFrom = self.settingsReader.getZeroTimeById('ey', channel)
+            data = multiData.tagIntervals(chData, startFrom)
 
             file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('ocul',channel).get('path'))[0]+'_report.xls'
             self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
@@ -109,14 +168,18 @@ class Stats():
                                          self.groupbyListAndDescribe(data,['Interval', 'Id', data['Tier'].str.lower()],'Gaze event duration')])
 
 
+
+        #TODO copy log here
         self.topWindow.logger.debug('writing settings...')
         self.settingsReader.settingsTree.write(saveDir + '/' + os.path.basename(self.settingsReader.settingsFile))
+
+        self.topWindow.setStatus('Statistics reports saved. Settings included for reproducibility.')
 
         reportFile=open(saveDir + '/history.txt','w')
         reportFile.write(self.topWindow.report.get('0.0',END))
         reportFile.close()
 
-        self.topWindow.setStatus('Statistics reports saved. Settings included for reproducibility.')
+        
 
 
 

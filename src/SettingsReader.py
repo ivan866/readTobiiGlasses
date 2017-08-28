@@ -6,6 +6,8 @@ import xml.etree.ElementTree as ET
 
 from tkinter import filedialog
 
+import pandas
+
 from data import Utils
 
 
@@ -68,6 +70,7 @@ class SettingsReader:
 
     def open(self) -> None:
         """Asynchronously opens settings in external text editor."""
+		#TODO check OS type
         self.topWindow.setStatus('Calling external editor...')
         subprocess.run('npp/notepad++.exe '+self.settingsFile)
         self.topWindow.setStatus('Returned from external editor.')
@@ -193,6 +196,28 @@ class SettingsReader:
         else:
             return dur
 
+    def getDurations(self,parse:bool=True)->list:
+        """Returns a list of durations of all intervals.
+        
+        :param parse: bool whether to parse list items to timedelta or not.
+        :return: A list.
+        """
+        durs = []
+        for interval in self.getIntervals():
+            durs.append(self.getDurationById(interval.get('id'),parse))
+        return durs
+
+    def totalDuration(self,parse:bool=True)->object:
+        """Returns total duration of all intervals.
+        
+        :param parse: bool whether to parse str to timedelta or not.
+        :return: Duration of interval in timedelta or str format.
+        """
+        dur=pandas.DataFrame(self.getDurations(True)).sum()[0]
+        if parse:
+            return dur
+        else:
+            return dur.strftime('%M:%S.%f')
 
 
     def check(self) -> bool:
