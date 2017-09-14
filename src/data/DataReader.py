@@ -30,21 +30,36 @@ class DataReader():
                 line = f.readline()
             return lineNum
 
-    def read(self, settingsReader, multiData) -> None:
+    def read(self, settingsReader, multiData,serial:bool=False) -> None:
         """Actual data parsing code.
         
         Depends on pandas module.
+
+        :param settingsReader: SettingsReader object to get xml settings tree from.
+        :param multiData: MultiData object to write into.
+        :param serial: If this is a serial batch.
+        :return: 
         """
         self.topWindow.logger.debug('reading data...')
         if settingsReader.check():
-            settingsReader.read()
+            settingsReader.read(serial=serial)
         else:
             return
 
         multiData.reset()
+        self.readTobii(settingsReader, multiData, serial=serial)
+        self.readManu(settingsReader, multiData, serial=serial)
+        self.readOcul(settingsReader, multiData, serial=serial)
+        self.topWindow.setStatus('All valuable data read successfully.')
 
-
-        #читаем данные айтрекера
+    def readTobii(self,settingsReader, multiData,serial:bool=False)->None:
+        """Reads Tobii Glasses 2 gaze data from .tsv file.
+        
+        :param settingsReader: 
+        :param multiData: 
+        :param serial: 
+        :return: 
+        """
         settingsGaze = settingsReader.getTypes('gaze')
         if len(settingsGaze):
             for file in settingsGaze:
@@ -172,8 +187,14 @@ class DataReader():
         else:
             self.topWindow.setStatus('No gaze data specified in settings.')
 
+    def readManu(self, settingsReader, multiData, serial: bool = False) -> None:
+        """Reads manu annotation from txt file.
 
-        # читаем аннотации manu
+        :param settingsReader: 
+        :param multiData: 
+        :param serial: 
+        :return: 
+        """
         self.topWindow.logger.debug('reading manu data...')
         settingsManu = settingsReader.getTypes('manu')
         if len(settingsManu):
@@ -194,8 +215,14 @@ class DataReader():
         else:
             self.topWindow.setStatus('No manu annotations specified in settings.')
 
+    def readOcul(self, settingsReader, multiData, serial: bool = False) -> None:
+        """Reads ocul annotation from Excel file.
 
-        # читаем аннотации ocul из excel
+        :param settingsReader: 
+        :param multiData: 
+        :param serial: 
+        :return: 
+        """
         self.topWindow.logger.debug('reading ocul data...')
         settingsOcul = settingsReader.getTypes('ocul')
         if len(settingsOcul):
@@ -218,6 +245,3 @@ class DataReader():
                     self.topWindow.setStatus('Ocul file specified in settings (' + os.path.basename(oculFile) + ') does not exist!')
         else:
             self.topWindow.setStatus('No ocul annotations specified in settings.')
-
-
-        self.topWindow.setStatus('All valuable data read successfully.')

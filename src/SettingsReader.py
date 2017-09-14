@@ -1,11 +1,15 @@
+import argparse
 import os
+import shutil
+import re
 import subprocess
-from datetime import timedelta
+from datetime import datetime
 
 import xml.etree.ElementTree as ET
 
 from tkinter import filedialog
 
+import numpy
 import pandas
 
 from data import Utils
@@ -22,10 +26,18 @@ class SettingsReader:
     def __init__(self,topWindow):
         #TODO refactor to singleton pattern
         self.topWindow=topWindow
+
         self.dataDir = None
         self.settingsFile = None
         self.settingsTree = None
         self.settings = None
+
+        self.batchNum=0
+        self.batchFile=None
+        self.batchDir=None
+        self.batchSettingsTree = None
+        self.batchSettings=None
+
         SettingsReader.readers.append(self)
 
 
@@ -56,17 +68,74 @@ class SettingsReader:
             self.dataDir=os.path.dirname(self.settingsFile)
             self.topWindow.setStatus('Settings file selected (not read or modified yet).')
 
+    def selectBatch(self,pivotData:object,stats:object)-> None:
+        """Parses .bat file and runs every script with every settings file in it. Then combines reports together for summary statistic analysis.
+        
+        :param pivotData: PivotData object to hold tables into.
+        :param stats: Stats object to write files with.
+        :return: 
+        """
+        batchFile = filedialog.askopenfilename(filetypes = (("Batch command file","*.bat"),("all files","*.*")))
 
-    def read(self)->None:
-        """Actually reads and parses xml file contents."""
+        if batchFile:
+            #обнуляем на случай повторного запуска в той же сессии
+            self.batchNum = 0
+            self.batchFile=batchFile
+            self.batchSettingsTree=None
+            self.readBatch(pivotData=pivotData,stats=stats)
+
+    def read(self,serial:bool=False)->None:
+        """Actually reads and parses xml file contents.
+        
+        :param serial: If this is a serial batch.
+        :return: 
+        """
         self.topWindow.logger.debug('reading settings...')
         self.settingsTree = ET.parse(self.settingsFile)
         self.settings = self.settingsTree.getroot()
+        if serial:
+            for el in self.settings.findall('*'):
+                el.set('batchNum', str(self.batchNum))
+        #init of batch settings tree
+        if not self.batchSettingsTree:
+            self.batchSettingsTree=self.settingsTree
+            self.batchSettings=self.batchSettingsTree.getroot()
+        else:
+            self.batchSettings.extend(self.settings)
+
         self.topWindow.setStatus('Settings parsed ('+self.settingsFile+').')
 
-        #TODO if no intervals
         if len(self.getIntervals()) == 0:
-            self.topWindow.setStatus('No intervals specified. Assuming monolythic data.')
+            self.topWindow.setStatus('No intervals specified. Please explicitly specify at least 1 interval in settings file.')
+
+
+    def readBatch(self,pivotData:object,stats:object)->None:
+        """Reads and executes runs from batch sequentially.
+        
+        :param pivotData:
+        :param stats:
+        :return: 
+        """
+        self.topWindow.setStatus('Batch file specified. Working (REM lines not ignored)...')
+        now = datetime.now().strftime('%Y-%m-%d %H_%M_%S')
+        self.batchDir = os.getcwd() + '/batch_' + now
+        with open(self.batchFile) as f:
+            line = f.readline()
+            while line:
+                args = argparse.Namespace()
+                args.settings = re.search('--settings=(.+)', line).groups()[0]
+                self.batchNum=self.batchNum+1
+                savePath = self.batchDir + '/' + str(self.batchNum)
+                self.topWindow.setStatus('--Line ' + str(self.batchNum)+'--')
+                self.topWindow.batchProcess(args, serial=True, savePath=savePath)
+                line = f.readline()
+
+        pivotData.pivot(settingsReader=self,stats=stats)
+
+        self.saveSerial()
+        shutil.copy2(self.batchFile, self.batchDir + '/' + os.path.basename(self.batchFile))
+        self.topWindow.setStatus('Batch complete. Pivot tables ready.')
+        self.topWindow.saveReport(self.batchDir)
 
 
     def open(self) -> None:
@@ -96,15 +165,36 @@ class SettingsReader:
         """
         return self.settings.findall("file[@type='"+type+"']")
 
-    def getTypeById(self,type:str,id:str) -> object:
+    def unique(self,element:str='file',field:str='',serial:bool=False)->list:
+        """Filters all specified elements by field and returns unique.
+        
+        :param element: On what element of setings to filter on.
+        :param field: For what field to serahc for.
+        :param serial: Whether to search in batch settings.
+        :return: List of unique fields in these elements.
+        """
+        if serial:
+            elements=self.batchSettings.findall(element)
+        else:
+            elements = self.settings.findall(element)
+        l=[]
+        for el in elements:
+            l.append(el.get(field))
+        return numpy.unique(l)
+
+    def getTypeById(self,type:str,id:str,serial:bool=False) -> object:
         """Filters settings nodes by both type and id.
         
         :param type: type string from settings.
         :param id: id string from settings.
-        :return: ElementTree.Element
+        :param serial: Whether to find all nodes with this type/id combination. Useful for serial batch.
+        :return: ElementTree.Element or list of them.
         """
         self.topWindow.logger.debug('get type by id')
-        return self.settings.find("file[@type='" + type + "'][@id='"+id+"']")
+        if serial:
+            return self.batchSettings.findall("file[@type='" + type + "'][@id='" + id + "']")
+        else:
+            return self.settings.find("file[@type='" + type + "'][@id='"+id+"']")
 
     def getZeroTimeById(self,type:str,id:str,parse:bool=True) -> object:
         """Resolves and returns zeroTime attribute of a file tag.
@@ -135,12 +225,16 @@ class SettingsReader:
         self.topWindow.logger.debug('get interval by id')
         return self.settings.find("interval[@id='"+id+"']")
 
-    def getIntervals(self) -> list:
+    def getIntervals(self,ignoreEmpty:bool=True) -> list:
         """Returns all intervals.
         
+        :param ignoreEmpty: Whether to cut off the empty intervals.
         :return: A list of interval nodes from settings.
         """
-        return self.settings.findall("interval")
+        if ignoreEmpty:
+            return [interval for interval in self.settings.findall("interval") if interval.get('id')]
+        else:
+            return self.settings.findall("interval")
 
 
     def getStartTimeById(self,id:str,format:bool=False) -> object:
@@ -153,7 +247,7 @@ class SettingsReader:
         :return: Start time of interval in timedelta object.
         """
         self.topWindow.logger.debug('get start time by id')
-        ints=self.getIntervals()
+        ints=self.getIntervals(ignoreEmpty=False)
         startTime=Utils.parseTime(0)
         thisId=None
         for i in ints:
@@ -232,3 +326,23 @@ class SettingsReader:
         else:
             self.topWindow.setStatus('Select settings first!')
             return False
+
+
+    def save(self,saveDir:str)->None:
+        """Write current settings to file.
+        
+        :param saveDir: Path to write into.
+        :return: 
+        """
+        self.topWindow.logger.debug('writing settings...')
+        self.settingsTree.write(saveDir + '/' + os.path.basename(self.settingsFile))
+
+    def saveSerial(self,saveDir:str='')->None:
+        """Writes combined settings to xml file.
+        
+        :param saveDir: Path to save combined batch settings into.
+        :return: 
+        """
+        if not saveDir:
+            saveDir=self.batchDir
+        self.batchSettingsTree.write(saveDir + '/readTobiiGlassesSettings-'+os.path.splitext(os.path.basename(self.batchFile))[0]+'.xml')

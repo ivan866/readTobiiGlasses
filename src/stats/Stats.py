@@ -1,15 +1,28 @@
 import os
 from datetime import datetime
 
-from tkinter import *
-
 import xml.etree.ElementTree as ET
 
 import numpy
+from scipy.stats import pearsonr
+from scipy.stats import chisquare
+from scipy.stats import fligner
 
 import pandas
 from pandas import DataFrame
 from pandas import Series
+
+import matplotlib
+from matplotlib import pyplot
+matplotlib.style.use('grayscale')
+import matplotlib.pylab as pylab
+params = {'legend.fontsize': 'xx-small',
+          'figure.figsize': (3,3),
+         'axes.labelsize': 'x-small',
+         'axes.titlesize': 'x-small',
+         'xtick.labelsize':'small',
+         'ytick.labelsize':'small'}
+pylab.rcParams.update(params)
 
 from SettingsReader import SettingsReader
 
@@ -26,7 +39,7 @@ class Stats():
         self.settingsReader=SettingsReader.getReader()
 
 
-    def groupbyListAndDescribe(self,data:object,groupby:object,on=str)->DataFrame:
+    def groupbyListAndDescribe(self,data:object,groupby:object,on:str)->DataFrame:
         """Slices data on groupby, aggregates on column and adds some descriptive columns.
         
         :param data: Dataframe to slice.
@@ -34,7 +47,6 @@ class Stats():
         :param on: Column to aggregate on.
         :return: data slice.
         """
-        #TODO отбрасывать интервалы trans?
         #TODO change describe to agg(count,sum,etc.)
         self.topWindow.logger.debug('group by list and describe')
         #data.fillna('<NA>',inplace=True)
@@ -78,27 +90,71 @@ class Stats():
 
         return sliced
 
-    def saveIncrementally(self,file:str,data:list)->None:
-        """Writes dataframes to one excel file, stacking them on the same sheet.
+
+    def save(self,file:str,data:list,sheets:list=[],serial:bool=False) -> None:
+        """Writes calculated statistic to files.
         
         :param file: File path.
         :param data: List of DataFrame objects.
+        :param sheets: List of sheet names.
+        :param serial: Whether to save csv along with Excel files.
+        :return: 
+        """
+        if serial:
+            self.saveCSV(file,data)
+        self.saveIncrementally(file,data,sheets)
+
+    def saveCSV(self,file:str,data:list)->None:
+        """Writes stats to many csv, one for each table.
+        
+        :param file: 
+        :param data: 
+        :return: 
+        """
+        dfNum = 0
+        for df in data:
+            dfNum = dfNum + 1
+            fileInd = os.path.splitext(file)[0] + '_' + str(dfNum) + '.csv'
+            # кодировка на случай кириллицы
+            df.to_csv(fileInd, sep='\t', encoding='UTF-8')
+
+    def saveIncrementally(self,file:str,data:list,sheets:list=[])->None:
+        """Writes dataframes to one excel file, stacking them on the same sheet.
+        
+        :param file:
+        :param data:
+        :param sheets:
         :return: 
         """
         self.topWindow.logger.debug('save incrementally')
+        if len(sheets) and len(data)!=len(sheets):
+            raise ValueError
+
         writer=pandas.ExcelWriter(file)
+        dfNum=0
         startrow=0
+        startrows={}
+        for sheet in sheets:
+            startrows[sheet]=0
+
         for df in data:
-            df.to_excel(writer,startrow=startrow)
-            startrow=startrow+df.shape[0]+3
+            if len(sheets):
+                startrow=startrows[sheets[dfNum]]
+                df.to_excel(writer, startrow=startrow, sheet_name=sheets[dfNum])
+                startrows[sheets[dfNum]]=startrow+df.shape[0]+3
+                dfNum=dfNum+1
+            else:
+                df.to_excel(writer, startrow=startrow)
+                startrow = startrow + df.shape[0] + 3
             writer.save()
 
 
-    def descriptive(self,multiData) -> None:
+    def descriptive(self,multiData,serial:bool=False,savePath:str='') -> None:
         """Basic data summary.
         
         Data description, length, number of channels, etc. Means, medians and distributions, grouped by channels and overall.
         
+        :param serial: If this is a serial batch.
         :return: 
         """
         self.topWindow.logger.debug('descriptive stats')
@@ -108,39 +164,39 @@ class Stats():
         dateTag.text = now
         self.settingsReader.settings.append(dateTag)
 
-        saveDir = self.settingsReader.dataDir + '/stats_' + now
-        os.mkdir(saveDir)
+        if serial:
+            saveDir = savePath
+        else:
+            saveDir = self.settingsReader.dataDir + '/stats_' + now
+        os.makedirs(saveDir)
         self.topWindow.logger.debug('iterating through data channels...')
 
 
         #статистика
+        if self.settingsReader.settings.find("interval[@id='']") is not None:
+            self.topWindow.setStatus('Warning: unnamed intervals skipped!')
+
         for channel in multiData.multiData['fixations']:
             chData = multiData.getChannelById('fixations', channel)
             startFrom = self.settingsReader.getZeroTimeById('ey', channel)
             #allData=multiData.getDataFromAll(chData,startFrom)
-            data=multiData.tagIntervals(chData,startFrom)
+            fData=multiData.tagIntervals(chData,startFrom)
 
-            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_fixations report.xls'
-            self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
-                                         self.groupbyListAndDescribe(data, 'Interval', 'Gaze event duration')])
-
-        for channel in multiData.multiData['saccades']:
             chData = multiData.getChannelById('saccades', channel)
-            startFrom = self.settingsReader.getZeroTimeById('ey', channel)
-            data=multiData.tagIntervals(chData,startFrom)
+            sData = multiData.tagIntervals(chData, startFrom)
 
-            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_saccades report.xls'
-            self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
-                                         self.groupbyListAndDescribe(data, 'Interval', 'Gaze event duration')])
-
-        for channel in multiData.multiData['eyesNotFounds']:
             chData = multiData.getChannelById('eyesNotFounds', channel)
-            startFrom = self.settingsReader.getZeroTimeById('ey', channel)
-            data=multiData.tagIntervals(chData,startFrom)
+            enfData = multiData.tagIntervals(chData, startFrom)
 
-            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_eyesNotFounds report.xls'
-            self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
-                                         self.groupbyListAndDescribe(data, 'Interval', 'Gaze event duration')])
+            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_report.xls'
+            self.save(file,[self.groupbyListAndDescribe(fData, [], 'Gaze event duration'),
+                            self.groupbyListAndDescribe(fData, 'Interval', 'Gaze event duration'),
+                            self.groupbyListAndDescribe(sData, [], 'Gaze event duration'),
+                            self.groupbyListAndDescribe(sData, 'Interval', 'Gaze event duration'),
+                            self.groupbyListAndDescribe(enfData, [], 'Gaze event duration'),
+                            self.groupbyListAndDescribe(enfData, 'Interval', 'Gaze event duration')],
+                      sheets=['Fixations','Fixations','Saccades','Saccades','EyesNotFounds','EyesNotFounds'],
+                      serial=serial)
 
 
         for channel in multiData.multiData['manu']:
@@ -150,8 +206,9 @@ class Stats():
             data.dropna(subset=(['mGesture']), inplace=True)
 
             file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('manu',channel).get('path'))[0]+'_report.xls'
-            self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Duration - ss.msec'),
-                                         self.groupbyListAndDescribe(data, 'Interval', 'Duration - ss.msec')])
+            self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration - ss.msec'),
+                            self.groupbyListAndDescribe(data, 'Interval', 'Duration - ss.msec')],
+                      serial=serial)
 
 
         for channel in multiData.multiData['ocul']:
@@ -160,32 +217,70 @@ class Stats():
             data = multiData.tagIntervals(chData, startFrom)
 
             file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('ocul',channel).get('path'))[0]+'_report.xls'
-            self.saveIncrementally(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
-                                         self.groupbyListAndDescribe(data, 'Interval', 'Gaze event duration'),
-                                         self.groupbyListAndDescribe(data, 'Id', 'Gaze event duration'),
-                                         self.groupbyListAndDescribe(data, data['Tier'].str.lower(), 'Gaze event duration'),
-                                         self.groupbyListAndDescribe(data, ['Interval', 'Id'], 'Gaze event duration'),
-                                         self.groupbyListAndDescribe(data, ['Interval', data['Tier'].str.lower()], 'Gaze event duration'),
-                                         self.groupbyListAndDescribe(data, ['Id', data['Tier'].str.lower()], 'Gaze event duration'),
-                                         self.groupbyListAndDescribe(data,['Interval', 'Id', data['Tier'].str.lower()],'Gaze event duration')])
+            self.save(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
+                            self.groupbyListAndDescribe(data, 'Interval', 'Gaze event duration'),
+                            self.groupbyListAndDescribe(data, 'Id', 'Gaze event duration'),
+                            self.groupbyListAndDescribe(data, data['Tier'].str.lower(), 'Gaze event duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'Id'], 'Gaze event duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', data['Tier'].str.lower()], 'Gaze event duration'),
+                            self.groupbyListAndDescribe(data, ['Id', data['Tier'].str.lower()], 'Gaze event duration'),
+                            self.groupbyListAndDescribe(data,['Interval', 'Id', data['Tier'].str.lower()],'Gaze event duration')],
+                      serial=serial)
 
 
 
         #TODO copy log here
-        self.topWindow.logger.debug('writing settings...')
-        self.settingsReader.settingsTree.write(saveDir + '/' + os.path.basename(self.settingsReader.settingsFile))
+        self.settingsReader.save(saveDir)
+        self.topWindow.setStatus('Statistic reports saved. Settings included for reproducibility.')
+        self.topWindow.saveReport(saveDir)
 
-        self.topWindow.setStatus('Statistics reports saved. Settings included for reproducibility.')
 
-        reportFile=open(saveDir + '/history.txt','w')
-        reportFile.write(self.topWindow.report.get('0.0',END))
-        reportFile.close()
-
+    def difference(self,pivotData:object)->None:
+        """Statistical criteria applied to pivot tables.
         
+        :param pivotData: PivotData object to apply to.
+        :return: 
+        """
+        self.topWindow.setStatus('--Difference statistics--')
 
+        self.topWindow.setStatus('conv-manu-C+R-total ratio by duration')
+        col=DataFrame(pivotData.pivots['manu'][1]['total ratio by duration'])
+        col.reset_index(inplace=True)
+        l1=col[(col['Id']=='C') & (col['Interval']=='conv')]['total ratio by duration']
+        l3=col[(col['Id']=='R') & (col['Interval']=='conv')]['total ratio by duration']
+        val=numpy.add(l1,l3)
+        res=chisquare(val)
+        self.topWindow.setStatus('chi sq.={0:.3f}, p={1:.2f}'.format(res.statistic,res.pvalue))
 
+        self.topWindow.setStatus('retell-manu-R-total ratio by duration')
+        l3 = col[(col['Id']=='R') & (col['Interval']=='retell')]['total ratio by duration']
+        res = chisquare(l3)
+        self.topWindow.setStatus('chi sq.={0:.3f}, p={1:.2f}'.format(res.statistic, res.pvalue))
 
+        self.topWindow.setStatus('interval-duration ratio')
+        col = DataFrame(pivotData.pivots['ocul'][1]['duration ratio'])
+        col.reset_index(inplace=True)
+        d = col[col['Id']=='N']
+        datas=[]
+        for tag,data in d.groupby('Record tag'):
+            datas.append(list(data['duration ratio']))
+        res=fligner(*datas)
+        self.topWindow.setStatus('Fligner\'s chi sq.={0:.3f}, p={1:.2f}'.format(res.statistic, res.pvalue))
 
-    def save(self) -> None:
-        """Writes calculated statistic to file."""
-        pass
+        self.topWindow.setStatus('manu-interval-total ratio')
+        col = DataFrame(pivotData.pivots['manu'][1]['total'])
+        d=col.groupby(['Record tag', 'Interval']).sum()
+        datas = []
+        for tag, data in d.groupby('Record tag'):
+            datas.append(list(data['total']))
+        datas2=[]
+        for el in datas:
+            datas2.append(el/sum(el)*100)
+        DataFrame(datas2).plot.bar(stacked=True)
+        pyplot.title('Общая длительность жестикуляции')
+        pyplot.xlabel('запись')
+        pyplot.ylabel('общая длительность (%)')
+        pyplot.xticks([0,1],[4,23])
+        pyplot.legend(labels=['рассказ','разговор','пересказ'])
+        pyplot.grid(True)
+        pyplot.tight_layout()

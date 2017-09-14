@@ -1,25 +1,25 @@
 <?xml version="1.0"?>
 <settings>
 	<file id="N" type="ey" path="Pears04N-ey.mp4" zeroTime="1:49.440"/>
-	<file id="N" type="gaze" path="pears04N Data Export.tsv" zeroTime="ey"/>
+	<!-- <file id="N" type="gaze" path="pears04N Data Export.tsv" zeroTime="ey"/> -->
 	<!-- <file id="N" type="voc" path="pears04N-voc.TextGrid"/> -->
 	<file id="N" type="manu" path="pears04N-manu.txt"/>
 	<!-- <file id="N" type="ceph" path="pears04N-ceph-monologue.txt"/> -->
-	<file id="N" type="ocul" path="pears04N-ocul.xls"/>
+	<file id="N" type="ocul" path="pears04N-ocul.xls" zeroTime="ey"/>
 	
 	<!-- <file id="C" type="voc" path="pears04C-voc.TextGrid"/> -->
 	<file id="C" type="manu" path="pears04C-manu.txt"/>
 	
 	<file id="R" type="ey" path="Pears04R-ey.mp4" zeroTime="2:16.600"/>
-	<file id="R" type="gaze" path="pears04R Data Export.tsv" zeroTime="ey"/>
+	<!-- <file id="R" type="gaze" path="pears04R Data Export.tsv" zeroTime="ey"/> -->
 	<!-- <file id="R" type="voc" path="pears04R-voc.TextGrid"/> -->
 	<file id="R" type="manu" path="pears04R-manu.txt"/>
 	<!-- <file id="R" type="ceph" path="pears04R-ceph-monologue.txt"/> -->
-	<file id="R" type="ocul" path="pears04R-ocul.xls"/>
+	<file id="R" type="ocul" path="pears04R-ocul.xls" zeroTime="ey"/>
 	
 	
-	<interval id="tell" duration="5:22.640"/>
-	<interval id="conv" duration="12:37.920"/>
-	<interval id="trans" duration="0:24.520"/>
-	<interval id="retell" duration="4:46.240"/>
+	<interval id="tell" duration="5:22.569"/>
+	<interval id="conv" duration="12:38.039"/>
+	<interval id="" duration="0:24.520"/>
+	<interval id="retell" duration="6:35.413"/>
 </settings>
