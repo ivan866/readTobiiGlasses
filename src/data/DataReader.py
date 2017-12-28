@@ -1,5 +1,6 @@
 import os
 import re
+import hashlib
 
 import pandas
 
@@ -30,6 +31,7 @@ class DataReader():
                 line = f.readline()
             return lineNum
 
+
     def read(self, settingsReader, multiData,serial:bool=False) -> None:
         """Actual data parsing code.
         
@@ -49,8 +51,11 @@ class DataReader():
         multiData.reset()
         self.readTobii(settingsReader, multiData, serial=serial)
         self.readManu(settingsReader, multiData, serial=serial)
+        self.readCeph(settingsReader, multiData, serial=serial)
         self.readOcul(settingsReader, multiData, serial=serial)
         self.topWindow.setStatus('All valuable data read successfully.')
+
+
 
     def readTobii(self,settingsReader, multiData,serial:bool=False)->None:
         """Reads Tobii Glasses 2 gaze data from .tsv file.
@@ -68,7 +73,7 @@ class DataReader():
                     self.topWindow.setStatus('Reading gaze data (file ' + os.path.basename(gazeFile) + ')...')
                     # узнаем какие столбцы присутствуют
                     headers = pandas.read_table(gazeFile, nrows=1, encoding='UTF-16')
-                    availColumns = [i for i in list(headers.columns) if re.match('Recording timestamp|Gaze point|Gaze direction|Pupil diameter|Eye movement type|Gaze event duration|Fixation point|Gyro|Accelerometer',i)]
+                    availColumns = [i for i in list(headers.columns) if re.match('Recording timestamp|Gaze point|Gaze 3D position|Gaze direction|Pupil diameter|Eye movement type|Gaze event duration|Fixation point|Gyro|Accelerometer',i)]
                     multiData.setNode('availColumns',file.get('id'),availColumns)
                     gazeData = pandas.read_table(gazeFile, decimal=",", encoding='UTF-16',
                                                  # ==============================================================================
@@ -88,26 +93,28 @@ class DataReader():
 
 
                     self.topWindow.logger.debug('gaze data read successfully')
-                    # гироскоп и акселерометр пишутся не синфазно с трекером, вырезаем в отдельные таблицы
-                    if multiData.hasAllColumns(['Gyro X','Gyro Y','Gyro Z'],file.get('id')):
+                    # гироскоп (95 Гц) и акселерометр (100 Гц) пишутся не синфазно с трекером, приходится заполнять пустоты в gyro
+                    if multiData.hasAllColumns(['Gyro X','Gyro Y','Gyro Z','Accelerometer X','Accelerometer Y','Accelerometer Z'],file.get('id')):
                         gyro = gazeData[['Recording timestamp',
                                          'Gyro X', 'Gyro Y', 'Gyro Z']]
+                        # заполняем недостающие строки по гироскопу
+                        #TODO попробовать interpolate
+                        #gyro.fillna(method='ffill',axis=0,inplace=True)
+                        #gyro=pandas.concat(objs=(gyro, gazeData[['Accelerometer X','Accelerometer Y','Accelerometer Z']]),axis=1)
                         # убираем пустые строки, но без учета столбца времени
+                        #accel = gazeData[['Recording timestamp',
+                        #                  'Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']]
                         gyro.dropna(subset=(['Gyro X', 'Gyro Y', 'Gyro Z']), how='all', inplace=True)
+                        #gyro.dropna(subset=(['Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']), how='all', inplace=True)
+                        # если остались еще пустые ячейки в начале записи
+                        #gyro.fillna(value=0,inplace=True)
                         multiData.setNode('gyro',file.get('id'),gyro)
+                        #multiData.setNode('accel',file.get('id'),accel)
 
                         # гироскоп в основных данных больше не нужен
-                        gazeData.drop(['Gyro X', 'Gyro Y', 'Gyro Z'], axis=1, inplace=True)
-
-
-                    if multiData.hasAllColumns(['Accelerometer X','Accelerometer Y','Accelerometer Z'],file.get('id')):
-                        accel = gazeData[['Recording timestamp',
-                                          'Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']]
-                        accel.dropna(subset=(['Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']), how='all',
-                                     inplace=True)
-                        multiData.setNode('accel',file.get('id'),accel)
-
-                        gazeData.drop(['Accelerometer X', 'Accelerometer Y', 'Accelerometer Z'], axis=1, inplace=True)
+                        gazeData.drop(['Gyro X', 'Gyro Y', 'Gyro Z', 'Accelerometer X', 'Accelerometer Y', 'Accelerometer Z'], axis=1, inplace=True)
+                    else:
+                        self.topWindow.setStatus('No gyroscope/accelerometer data in file {0}!'.format(os.path.basename(gazeFile)))
 
                     # убираем пустые строки
                     gazeData = gazeData[(gazeData['Gaze point X'].notnull()) & (gazeData['Gaze point Y'].notnull()) | \
@@ -182,10 +189,13 @@ class DataReader():
                                        axis=1, inplace=True)
 
                     multiData.setNode('gaze',file.get('id'),gazeData)
+                    file.set('md5',self.md5(gazeFile))
                 else:
                     self.topWindow.setStatus('Gaze file specified in settings (' + os.path.basename(gazeFile) + ') does not exist!')
         else:
             self.topWindow.setStatus('No gaze data specified in settings.')
+
+
 
     def readManu(self, settingsReader, multiData, serial: bool = False) -> None:
         """Reads manu annotation from txt file.
@@ -210,10 +220,25 @@ class DataReader():
                     #manuData.rename(columns={col: re.sub('.*lt.*phases.*','mLtPhases',col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
                     #manuData.rename(columns={col: re.sub('.*rt.*phases.*', 'mRtPhases', col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
                     multiData.setNode('manu',file.get('id'),manuData)
+                    file.set('md5',self.md5(manuFile))
                 else:
                     self.topWindow.setStatus('Manu file specified in settings (' + os.path.basename(manuFile) + ') does not exist!')
         else:
             self.topWindow.setStatus('No manu annotations specified in settings.')
+
+
+
+    def readCeph(self, settingsReader, multiData, serial: bool = False) -> None:
+        """Reads ceph annotation from ELAN .eaf file.
+
+        :param settingsReader:
+        :param multiData:
+        :param serial:
+        :return:
+        """
+        pass
+
+
 
     def readOcul(self, settingsReader, multiData, serial: bool = False) -> None:
         """Reads ocul annotation from Excel file.
@@ -235,13 +260,30 @@ class DataReader():
                                                  names=('Timecode',
                                                         'Gaze event duration',
                                                         'Id', 'Tier'),
-                                                 parse_cols='B:E')
+                                                 usecols='B:E')
                     #при считывании из excel в строках могут оставаться знаки \t
                     oculData=oculData.applymap(lambda x: re.sub('\t(.*)', '\\1', str(x)))
                     oculData=oculData.astype({'Gaze event duration':int})
                     oculData['Gaze event duration'] /= 1000
                     multiData.setNode('ocul',file.get('id'),oculData)
+                    file.set('md5',self.md5(oculFile))
                 else:
                     self.topWindow.setStatus('Ocul file specified in settings (' + os.path.basename(oculFile) + ') does not exist!')
         else:
             self.topWindow.setStatus('No ocul annotations specified in settings.')
+
+
+
+    def md5(self,fname:str)->str:
+        """Calculates and returns MD5 hash checksum of a file.
+
+        From https://stackoverflow.com/a/3431838/2795533
+
+        :param fname: file path.
+        :return: md5 hex value.
+        """
+        hash_md5 = hashlib.md5()
+        with open(fname, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()

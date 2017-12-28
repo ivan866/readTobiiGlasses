@@ -48,7 +48,6 @@ def parseTimeV(data:Series)->Series:
     """
     if data.name=='Recording timestamp' or data.name=='Begin Time - ss.msec':
         return pandas.to_timedelta(data, unit='s')
-    #TODO numpy.vectorize
     else:
         return pandas.to_datetime(data.astype(str), infer_datetime_format=True)-date.today()
 

@@ -26,7 +26,7 @@ class MultiData():
         self.multiData['eyesNotFounds'] = {}
         self.multiData['unclassifieds'] = {}
         self.multiData['gyro'] = {}
-        self.multiData['accel'] = {}
+        #self.multiData['accel'] = {}
         self.multiData['voc'] = {}
         self.multiData['manu'] = {}
         self.multiData['ceph'] = {}
@@ -54,6 +54,7 @@ class MultiData():
 
 
     #filter data methods
+    #FIXME make channel/type/id arguments consistent across all code
     def getChannelById(self, channel:str, id:str) -> object:
         """Returns what's inside multiData[channel][id] dict hierarchy.
         
@@ -64,6 +65,24 @@ class MultiData():
         self.topWindow.logger.debug('get channel by id')
         return self.multiData[channel][id]
 
+    def getChannelAndTag(self,channel:str,id:str)->object:
+        """Returns what's inside the given channel, but tags the data by record tag, id and interval first.
+        
+        :param channel: 
+        :param id: 
+        :return: 
+        """
+        chData = self.getChannelById(channel, id)
+        if channel=='fixations' or channel=='saccades' or channel=='eyesNotFounds' or channel=='unclassifieds' or channel=="gyro":
+            channelZeroName='gaze'
+        else:
+            channelZeroName=channel
+        startFrom = self.settingsReader.getZeroTimeById(channelZeroName, id)
+        pathAttr=self.settingsReader.getPathAttrById(type=channelZeroName,id=id)
+        if ('Record tag' not in chData.columns) and ('Id' not in chData.columns):
+            chData.insert(1, 'Record tag', pathAttr)
+            chData.insert(2, 'Id', id)
+        return self.tagIntervals(chData, startFrom)
 
     def getDataBetween(self,data:object,timeStart:object,timeEnd:object) -> object:
         """Selects and returns those data where timestamp is in given interval range.
@@ -137,6 +156,14 @@ class MultiData():
             data.append(intData)
 
         data=data[0].append(data[1:])
+
+
+        zeroBased=[]
+        zeroTime=data.iloc[0,0]
+        for timestamp in data.iloc[:,0]:
+            zeroBased.append(timestamp-zeroTime)
+        data.insert(1, 'TimestampZeroBased', zeroBased)
+
         return data
 
 
@@ -190,6 +217,8 @@ class MultiData():
             return False
 
 
+
+
     def validate(self) -> bool:
         """Performs some useful sanity checks on data for errors and integrity.
         
@@ -198,4 +227,5 @@ class MultiData():
         
         :return: True if no errors found, False if data contains nonsense or mutually exclusive attributes.
         """
+        #TODO issue #10
         pass

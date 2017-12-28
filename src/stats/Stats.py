@@ -1,9 +1,7 @@
 import os
-from datetime import datetime
-
-import xml.etree.ElementTree as ET
 
 import numpy
+
 from scipy.stats import pearsonr
 from scipy.stats import chisquare
 from scipy.stats import fligner
@@ -12,17 +10,7 @@ import pandas
 from pandas import DataFrame
 from pandas import Series
 
-import matplotlib
 from matplotlib import pyplot
-matplotlib.style.use('grayscale')
-import matplotlib.pylab as pylab
-params = {'legend.fontsize': 'xx-small',
-          'figure.figsize': (3,3),
-         'axes.labelsize': 'x-small',
-         'axes.titlesize': 'x-small',
-         'xtick.labelsize':'small',
-         'ytick.labelsize':'small'}
-pylab.rcParams.update(params)
 
 from SettingsReader import SettingsReader
 
@@ -33,6 +21,7 @@ class Stats():
     """Statistical methods for multidiscourse data."""
 
     #TODO add sequence search for face-hands-face-hands patterns in ocul
+    #TODO make test data package
 
     def __init__(self,topWindow):
         self.topWindow = topWindow
@@ -41,7 +30,7 @@ class Stats():
 
     def groupbyListAndDescribe(self,data:object,groupby:object,on:str)->DataFrame:
         """Slices data on groupby, aggregates on column and adds some descriptive columns.
-        
+
         :param data: Dataframe to slice.
         :param groupby: List of columns or str to groupby, can be empty.
         :param on: Column to aggregate on.
@@ -93,12 +82,12 @@ class Stats():
 
     def save(self,file:str,data:list,sheets:list=[],serial:bool=False) -> None:
         """Writes calculated statistic to files.
-        
+
         :param file: File path.
         :param data: List of DataFrame objects.
         :param sheets: List of sheet names.
         :param serial: Whether to save csv along with Excel files.
-        :return: 
+        :return:
         """
         if serial:
             self.saveCSV(file,data)
@@ -106,10 +95,10 @@ class Stats():
 
     def saveCSV(self,file:str,data:list)->None:
         """Writes stats to many csv, one for each table.
-        
-        :param file: 
-        :param data: 
-        :return: 
+
+        :param file:
+        :param data:
+        :return:
         """
         dfNum = 0
         for df in data:
@@ -120,11 +109,11 @@ class Stats():
 
     def saveIncrementally(self,file:str,data:list,sheets:list=[])->None:
         """Writes dataframes to one excel file, stacking them on the same sheet.
-        
+
         :param file:
         :param data:
         :param sheets:
-        :return: 
+        :return:
         """
         self.topWindow.logger.debug('save incrementally')
         if len(sheets) and len(data)!=len(sheets):
@@ -149,26 +138,18 @@ class Stats():
             writer.save()
 
 
-    def descriptive(self,multiData,serial:bool=False,savePath:str='') -> None:
+
+    def descriptive(self,multiData,dataExporter:object,serial:bool=False,savePath:str='') -> None:
         """Basic data summary.
-        
+
         Data description, length, number of channels, etc. Means, medians and distributions, grouped by channels and overall.
-        
+
         :param serial: If this is a serial batch.
-        :return: 
+        :return:
         """
         self.topWindow.logger.debug('descriptive stats')
         self.topWindow.setStatus('Gathering statistics... please wait.')
-        now = datetime.now().strftime('%Y-%m-%d %H_%M_%S')
-        dateTag = ET.Element('date')
-        dateTag.text = now
-        self.settingsReader.settings.append(dateTag)
-
-        if serial:
-            saveDir = savePath
-        else:
-            saveDir = self.settingsReader.dataDir + '/stats_' + now
-        os.makedirs(saveDir)
+        saveDir=dataExporter.createDir(prefix='stats',serial=serial,savePath=savePath)
         self.topWindow.logger.debug('iterating through data channels...')
 
 
@@ -177,16 +158,12 @@ class Stats():
             self.topWindow.setStatus('Warning: unnamed intervals skipped!')
 
         for channel in multiData.multiData['fixations']:
-            chData = multiData.getChannelById('fixations', channel)
-            startFrom = self.settingsReader.getZeroTimeById('ey', channel)
+            fData = multiData.getChannelAndTag('fixations', channel)
             #allData=multiData.getDataFromAll(chData,startFrom)
-            fData=multiData.tagIntervals(chData,startFrom)
 
-            chData = multiData.getChannelById('saccades', channel)
-            sData = multiData.tagIntervals(chData, startFrom)
+            sData = multiData.getChannelAndTag('saccades', channel)
 
-            chData = multiData.getChannelById('eyesNotFounds', channel)
-            enfData = multiData.tagIntervals(chData, startFrom)
+            enfData = multiData.getChannelAndTag('eyesNotFounds', channel)
 
             file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_report.xls'
             self.save(file,[self.groupbyListAndDescribe(fData, [], 'Gaze event duration'),
@@ -200,8 +177,7 @@ class Stats():
 
 
         for channel in multiData.multiData['manu']:
-            chData=multiData.getChannelById('manu', channel)
-            data = multiData.tagIntervals(chData, 0)
+            data = multiData.getChannelAndTag('manu', channel)
             #TODO проверить можно ли отбросить продублированные значения если не была снята галочка Repeat values of annotations
             data.dropna(subset=(['mGesture']), inplace=True)
 
@@ -212,9 +188,7 @@ class Stats():
 
 
         for channel in multiData.multiData['ocul']:
-            chData=multiData.getChannelById('ocul', channel)
-            startFrom = self.settingsReader.getZeroTimeById('ey', channel)
-            data = multiData.tagIntervals(chData, startFrom)
+            data=multiData.getChannelAndTag('ocul',channel)
 
             file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('ocul',channel).get('path'))[0]+'_report.xls'
             self.save(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
@@ -229,18 +203,19 @@ class Stats():
 
 
 
-        #TODO copy log here
-        self.settingsReader.save(saveDir)
-        self.topWindow.setStatus('Statistic reports saved. Settings included for reproducibility.')
-        self.topWindow.saveReport(saveDir)
+
+        self.topWindow.setStatus('Statistic reports saved.')
+        dataExporter.copyMeta()
+
 
 
     def difference(self,pivotData:object)->None:
         """Statistical criteria applied to pivot tables.
-        
+
         :param pivotData: PivotData object to apply to.
-        :return: 
+        :return:
         """
+        #TODO
         self.topWindow.setStatus('--Difference statistics--')
 
         self.topWindow.setStatus('conv-manu-C+R-total ratio by duration')

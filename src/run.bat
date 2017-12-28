@@ -1,1 +1,1 @@
-c:\Users\John\Anaconda3\python ReadTobiiGlasses.py
+g:\Users\Galina\Anaconda3\python ReadTobiiGlasses.py

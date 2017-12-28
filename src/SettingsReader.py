@@ -16,6 +16,7 @@ from data import Utils
 
 
 
+#TODO check when multiple intervals have empty ids
 class SettingsReader:
 
     """Reads, parses and queries xml file with settings."""
@@ -24,7 +25,6 @@ class SettingsReader:
 
 
     def __init__(self,topWindow):
-        #TODO refactor to singleton pattern
         self.topWindow=topWindow
 
         self.dataDir = None
@@ -41,6 +41,7 @@ class SettingsReader:
         SettingsReader.readers.append(self)
 
 
+    #TODO refactor to singleton pattern
     @classmethod
     def getReader(cls, i:int=0) -> object:
         """Statically iterates through all settings readers.
@@ -52,6 +53,12 @@ class SettingsReader:
         """
         return cls.readers[i]
 
+    def getDir(self)->str:
+        """Returns data directory containing this settings file.
+
+        :return: file path str.
+        """
+        return self.dataDir
 
     def select(self, file:str=None) -> None:
         """Selects file with settings, either via dialogue or literally by path string.
@@ -65,7 +72,9 @@ class SettingsReader:
             self.settingsFile=file
 
         if self.settingsFile:
+            #TODO check selected file type
             self.dataDir=os.path.dirname(self.settingsFile)
+            #TODO add watchdog when file modified - reread data
             self.topWindow.setStatus('Settings file selected (not read or modified yet).')
 
     def selectBatch(self,pivotData:object,stats:object)-> None:
@@ -90,6 +99,7 @@ class SettingsReader:
         :param serial: If this is a serial batch.
         :return: 
         """
+        #TODO check XML validity
         self.topWindow.logger.debug('reading settings...')
         self.settingsTree = ET.parse(self.settingsFile)
         self.settings = self.settingsTree.getroot()
@@ -140,7 +150,7 @@ class SettingsReader:
 
     def open(self) -> None:
         """Asynchronously opens settings in external text editor."""
-		#TODO check OS type
+        #TODO check OS type
         self.topWindow.setStatus('Calling external editor...')
         subprocess.run('npp/notepad++.exe '+self.settingsFile)
         self.topWindow.setStatus('Returned from external editor.')
@@ -168,8 +178,8 @@ class SettingsReader:
     def unique(self,element:str='file',field:str='',serial:bool=False)->list:
         """Filters all specified elements by field and returns unique.
         
-        :param element: On what element of setings to filter on.
-        :param field: For what field to serahc for.
+        :param element: On what element of settings to filter on.
+        :param field: For what field to search for.
         :param serial: Whether to search in batch settings.
         :return: List of unique fields in these elements.
         """
@@ -181,6 +191,24 @@ class SettingsReader:
         for el in elements:
             l.append(el.get(field))
         return numpy.unique(l)
+
+    def getPathAttrById(self,type:str,id:str,absolute:bool=False)->str:
+        """Returns path of a file suitable as a record tag.
+
+        Except it still contains type and id tags.
+
+        :param type: type str from settings.
+        :param id: id str from settings.
+        :param absolute: whether to concatenate with a dataDir and leave extension.
+        :return: path str.
+        """
+        #FIXME где уже была использована эта функция, но без учета absolute
+        file=self.getTypeById(type,id)
+        path=file.get('path')
+        if absolute:
+            return self.dataDir+'/'+path
+        else:
+            return os.path.splitext(path)[0]
 
     def getTypeById(self,type:str,id:str,serial:bool=False) -> object:
         """Filters settings nodes by both type and id.
