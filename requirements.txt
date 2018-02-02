@@ -1,0 +1,14 @@
+angles>=2.0
+eyestudio>=1.0.0
+nltk
+numpy
+pandas>=0.21.1
+Pillow
+pygame
+pympi-ling>=1.69
+scikit-kinematics>=0.7.3
+scipy
+seaborn
+SQLAlchemy
+xlrd
+xlwt

@@ -4,6 +4,13 @@
     <History nbMaxFile="10" inSubMenu="no" customLength="-1">
         <File filename="G:\text\org\&#x0418;&#x042F; &#x0420;&#x0410;&#x041D;\scripts\readTobiiGlasses\src\npp\readme.txt" />
         <File filename="G:\text\org\&#x0418;&#x042F; &#x0420;&#x0410;&#x041D;\record22\readTobiiGlassesSettings.xml" />
+        <File filename="G:\projects\pears\data\record22\readTobiiGlassesSettings.xml" />
+        <File filename="G:\projects\pears\data\tmp.txt" />
+        <File filename="G:\projects\pears\data\record04\readTobiiGlassesSettings.xml" />
+        <File filename="G:\projects\pears\data\pears04\readTobiiGlassesSettings.xml" />
+        <File filename="G:\projects\pears\data\pears22\readTobiiGlassesSettings.xml" />
+        <File filename="G:\projects\pears\data\pears23\readTobiiGlassesSettings.xml" />
+        <File filename="G:\projects\multidiscourse\data\pears22\readTobiiGlassesSettings.xml" />
     </History>
     <GUIConfigs>
         <GUIConfig name="ToolBar" visible="yes">standard</GUIConfig>
@@ -38,7 +45,7 @@
         <GUIConfig name="ScintillaGlobalSettings" enableMultiSelection="no" />
         <GUIConfig name="openSaveDir" value="0" defaultDirPath="" />
         <GUIConfig name="titleBar" short="no" />
-        <GUIConfig name="stylerTheme" path="G:\text\org\&#x0418;&#x042F; &#x0420;&#x0410;&#x041D;\scripts\readTobiiGlasses\src\npp\themes\vim Dark Blue.xml" />
+        <GUIConfig name="stylerTheme" path="G:\projects\multidiscourse\scripts\readTobiiGlasses\src\npp\stylers.xml" />
         <GUIConfig name="wordCharList" useDefault="yes" charsAdded="" />
         <GUIConfig name="delimiterSelection" leftmostDelimiter="40" rightmostDelimiter="41" delimiterSelectionOnEntireDocument="no" />
         <GUIConfig name="multiInst" setting="0" />

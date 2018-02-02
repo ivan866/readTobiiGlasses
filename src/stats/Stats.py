@@ -16,6 +16,8 @@ from SettingsReader import SettingsReader
 
 
 
+
+#FIXME probably class not needed, only static funcitons
 class Stats():
 
     """Statistical methods for multidiscourse data."""
@@ -42,6 +44,7 @@ class Stats():
         if type(groupby) is str:
             groupby=[groupby]
         if len(groupby):
+            #TODO добавить визуализации в виде мелких гистограмм для квартилей в этой статистике
             sliced = data.groupby(groupby, sort=False)[on].describe()
             slicedCountRat = sliced['count'] / sliced['count'].sum()
             slicedSum = data.groupby(groupby, sort=False)[on].sum()
@@ -144,7 +147,10 @@ class Stats():
 
         Data description, length, number of channels, etc. Means, medians and distributions, grouped by channels and overall.
 
+        :param multiData:
+        :param dataExporter:
         :param serial: If this is a serial batch.
+        :param savePath:
         :return:
         """
         self.topWindow.logger.debug('descriptive stats')
@@ -165,7 +171,7 @@ class Stats():
 
             enfData = multiData.getChannelAndTag('eyesNotFounds', channel)
 
-            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_report.xls'
+            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_descriptive.xls'
             self.save(file,[self.groupbyListAndDescribe(fData, [], 'Gaze event duration'),
                             self.groupbyListAndDescribe(fData, 'Interval', 'Gaze event duration'),
                             self.groupbyListAndDescribe(sData, [], 'Gaze event duration'),
@@ -176,12 +182,13 @@ class Stats():
                       serial=serial)
 
 
+        #TODO все данные теперь берутся прямо из eaf
         for channel in multiData.multiData['manu']:
             data = multiData.getChannelAndTag('manu', channel)
             #TODO проверить можно ли отбросить продублированные значения если не была снята галочка Repeat values of annotations
             data.dropna(subset=(['mGesture']), inplace=True)
 
-            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('manu',channel).get('path'))[0]+'_report.xls'
+            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('manu',channel).get('path'))[0]+'_descriptive.xls'
             self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration - ss.msec'),
                             self.groupbyListAndDescribe(data, 'Interval', 'Duration - ss.msec')],
                       serial=serial)
@@ -190,7 +197,7 @@ class Stats():
         for channel in multiData.multiData['ocul']:
             data=multiData.getChannelAndTag('ocul',channel)
 
-            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('ocul',channel).get('path'))[0]+'_report.xls'
+            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('ocul',channel).get('path'))[0]+'_descriptive.xls'
             self.save(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
                             self.groupbyListAndDescribe(data, 'Interval', 'Gaze event duration'),
                             self.groupbyListAndDescribe(data, 'Id', 'Gaze event duration'),
@@ -216,46 +223,47 @@ class Stats():
         :return:
         """
         #TODO
-        self.topWindow.setStatus('--Difference statistics--')
-
-        self.topWindow.setStatus('conv-manu-C+R-total ratio by duration')
-        col=DataFrame(pivotData.pivots['manu'][1]['total ratio by duration'])
-        col.reset_index(inplace=True)
-        l1=col[(col['Id']=='C') & (col['Interval']=='conv')]['total ratio by duration']
-        l3=col[(col['Id']=='R') & (col['Interval']=='conv')]['total ratio by duration']
-        val=numpy.add(l1,l3)
-        res=chisquare(val)
-        self.topWindow.setStatus('chi sq.={0:.3f}, p={1:.2f}'.format(res.statistic,res.pvalue))
-
-        self.topWindow.setStatus('retell-manu-R-total ratio by duration')
-        l3 = col[(col['Id']=='R') & (col['Interval']=='retell')]['total ratio by duration']
-        res = chisquare(l3)
-        self.topWindow.setStatus('chi sq.={0:.3f}, p={1:.2f}'.format(res.statistic, res.pvalue))
-
-        self.topWindow.setStatus('interval-duration ratio')
-        col = DataFrame(pivotData.pivots['ocul'][1]['duration ratio'])
-        col.reset_index(inplace=True)
-        d = col[col['Id']=='N']
-        datas=[]
-        for tag,data in d.groupby('Record tag'):
-            datas.append(list(data['duration ratio']))
-        res=fligner(*datas)
-        self.topWindow.setStatus('Fligner\'s chi sq.={0:.3f}, p={1:.2f}'.format(res.statistic, res.pvalue))
-
-        self.topWindow.setStatus('manu-interval-total ratio')
-        col = DataFrame(pivotData.pivots['manu'][1]['total'])
-        d=col.groupby(['Record tag', 'Interval']).sum()
-        datas = []
-        for tag, data in d.groupby('Record tag'):
-            datas.append(list(data['total']))
-        datas2=[]
-        for el in datas:
-            datas2.append(el/sum(el)*100)
-        DataFrame(datas2).plot.bar(stacked=True)
-        pyplot.title('Общая длительность жестикуляции')
-        pyplot.xlabel('запись')
-        pyplot.ylabel('общая длительность (%)')
-        pyplot.xticks([0,1],[4,23])
-        pyplot.legend(labels=['рассказ','разговор','пересказ'])
-        pyplot.grid(True)
-        pyplot.tight_layout()
+        # self.topWindow.setStatus('--Difference statistics--')
+        #
+        # self.topWindow.setStatus('conv-manu-C+R-total ratio by duration')
+        # col=DataFrame(pivotData.pivots['manu'][1]['total ratio by duration'])
+        # col.reset_index(inplace=True)
+        # l1=col[(col['Id']=='C') & (col['Interval']=='conv')]['total ratio by duration']
+        # l3=col[(col['Id']=='R') & (col['Interval']=='conv')]['total ratio by duration']
+        # val=numpy.add(l1,l3)
+        # res=chisquare(val)
+        # self.topWindow.setStatus('chi sq.={0:.3f}, p={1:.2f}'.format(res.statistic,res.pvalue))
+        #
+        # self.topWindow.setStatus('retell-manu-R-total ratio by duration')
+        # l3 = col[(col['Id']=='R') & (col['Interval']=='retell')]['total ratio by duration']
+        # res = chisquare(l3)
+        # self.topWindow.setStatus('chi sq.={0:.3f}, p={1:.2f}'.format(res.statistic, res.pvalue))
+        #
+        # self.topWindow.setStatus('interval-duration ratio')
+        # col = DataFrame(pivotData.pivots['ocul'][1]['duration ratio'])
+        # col.reset_index(inplace=True)
+        # d = col[col['Id']=='N']
+        # datas=[]
+        # for tag,data in d.groupby('Record tag'):
+        #     datas.append(list(data['duration ratio']))
+        # res=fligner(*datas)
+        # self.topWindow.setStatus('Fligner\'s chi sq.={0:.3f}, p={1:.2f}'.format(res.statistic, res.pvalue))
+        #
+        # self.topWindow.setStatus('manu-interval-total ratio')
+        # col = DataFrame(pivotData.pivots['manu'][1]['total'])
+        # d=col.groupby(['Record tag', 'Interval']).sum()
+        # datas = []
+        # for tag, data in d.groupby('Record tag'):
+        #     datas.append(list(data['total']))
+        # datas2=[]
+        # for el in datas:
+        #     datas2.append(el/sum(el)*100)
+        # DataFrame(datas2).plot.bar(stacked=True)
+        # pyplot.title('Общая длительность жестикуляции')
+        # pyplot.xlabel('запись')
+        # pyplot.ylabel('общая длительность (%)')
+        # pyplot.xticks([0,1],[4,23])
+        # pyplot.legend(labels=['рассказ','разговор','пересказ'])
+        # pyplot.grid(True)
+        # pyplot.tight_layout()
+        pass

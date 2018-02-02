@@ -2,6 +2,9 @@ from viz.AbstractViz import AbstractViz
 
 
 
+
+#TODO heatmap uses gaze 3d position and direction to project samples on sphere from inside; heatmap is spherical+able to render a plane projection, like an atlas
+
 class AbstractPlot(AbstractViz):
 
     """Base class for gaze plots."""

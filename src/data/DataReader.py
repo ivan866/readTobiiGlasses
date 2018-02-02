@@ -2,7 +2,11 @@ import os
 import re
 import hashlib
 
-import pandas
+
+import pandas as pd
+
+
+from pympi.Elan import Eaf
 
 
 
@@ -67,15 +71,16 @@ class DataReader():
         """
         settingsGaze = settingsReader.getTypes('gaze')
         if len(settingsGaze):
+            self.topWindow.setStatus('Reading gaze data...')
             for file in settingsGaze:
                 gazeFile = settingsReader.dataDir + '/' + file.get('path')
                 if os.path.exists(gazeFile):
                     self.topWindow.setStatus('Reading gaze data (file ' + os.path.basename(gazeFile) + ')...')
                     # узнаем какие столбцы присутствуют
-                    headers = pandas.read_table(gazeFile, nrows=1, encoding='UTF-16')
+                    headers = pd.read_table(gazeFile, nrows=1, encoding='UTF-16')
                     availColumns = [i for i in list(headers.columns) if re.match('Recording timestamp|Gaze point|Gaze 3D position|Gaze direction|Pupil diameter|Eye movement type|Gaze event duration|Fixation point|Gyro|Accelerometer',i)]
                     multiData.setNode('availColumns',file.get('id'),availColumns)
-                    gazeData = pandas.read_table(gazeFile, decimal=",", encoding='UTF-16',
+                    gazeData = pd.read_table(gazeFile, decimal=",", encoding='UTF-16',
                                                  # ==============================================================================
                                                  # numpy не поддерживает столбцы типа integer в которых есть NA
                                                  #                          dtype={'Recording timestamp':numpy.float32,
@@ -92,29 +97,43 @@ class DataReader():
                     # gazeData=gazeData.round(6)
 
 
+
                     self.topWindow.logger.debug('gaze data read successfully')
                     # гироскоп (95 Гц) и акселерометр (100 Гц) пишутся не синфазно с трекером, приходится заполнять пустоты в gyro
                     if multiData.hasAllColumns(['Gyro X','Gyro Y','Gyro Z','Accelerometer X','Accelerometer Y','Accelerometer Z'],file.get('id')):
+                        #imu
+                        #FIXME копируются столбцы с данными
                         gyro = gazeData[['Recording timestamp',
                                          'Gyro X', 'Gyro Y', 'Gyro Z']]
+                        accel = gazeData[['Recording timestamp',
+                                          'Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']]
+                        gyro.set_index (keys='Recording timestamp',drop=False,inplace=True)
+                        accel.set_index(keys='Recording timestamp',drop=False,inplace=True)
                         # заполняем недостающие строки по гироскопу
-                        #TODO попробовать interpolate
-                        #gyro.fillna(method='ffill',axis=0,inplace=True)
-                        #gyro=pandas.concat(objs=(gyro, gazeData[['Accelerometer X','Accelerometer Y','Accelerometer Z']]),axis=1)
+                        gyro.interpolate(method='index',inplace=True)
+                        gyro=pd.concat(objs=(gyro, accel[['Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']]),axis=1)
                         # убираем пустые строки, но без учета столбца времени
-                        #accel = gazeData[['Recording timestamp',
-                        #                  'Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']]
-                        gyro.dropna(subset=(['Gyro X', 'Gyro Y', 'Gyro Z']), how='all', inplace=True)
-                        #gyro.dropna(subset=(['Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']), how='all', inplace=True)
+                        gyro.dropna(subset=(['Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']), how='all', inplace=True)
                         # если остались еще пустые ячейки в начале записи
-                        #gyro.fillna(value=0,inplace=True)
-                        multiData.setNode('gyro',file.get('id'),gyro)
-                        #multiData.setNode('accel',file.get('id'),accel)
+                        gyro.fillna(value=0,inplace=True)
+                        multiData.setNode('imu',file.get('id'),gyro)
+
+                        #FIXME doubled data
+                        #gyro/accel
+                        gyro = gazeData[['Recording timestamp','Gyro X', 'Gyro Y', 'Gyro Z']]
+                        accel = gazeData[['Recording timestamp','Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']]
+                        # убираем пустые строки, но без учета столбца времени
+                        gyro.dropna(subset=(['Gyro X', 'Gyro Y', 'Gyro Z']), how='all', inplace=True)
+                        accel.dropna(subset=(['Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']), how='all', inplace=True)
+                        multiData.setNode('gyro', file.get('id'), gyro)
+                        multiData.setNode('accel',file.get('id'), accel)
 
                         # гироскоп в основных данных больше не нужен
                         gazeData.drop(['Gyro X', 'Gyro Y', 'Gyro Z', 'Accelerometer X', 'Accelerometer Y', 'Accelerometer Z'], axis=1, inplace=True)
                     else:
                         self.topWindow.setStatus('No gyroscope/accelerometer data in file {0}!'.format(os.path.basename(gazeFile)))
+
+
 
                     # убираем пустые строки
                     gazeData = gazeData[(gazeData['Gaze point X'].notnull()) & (gazeData['Gaze point Y'].notnull()) | \
@@ -130,7 +149,7 @@ class DataReader():
                                                                                                'Fixation point Y']]
                         # удаляем одинаковые строки, но без учета первого столбца
                         fixations.drop_duplicates(fixations.columns[range(1, fixations.shape[1])], inplace=True)
-                        timeReadable = pandas.to_datetime(fixations['Recording timestamp'], unit='s')
+                        timeReadable = pd.to_datetime(fixations['Recording timestamp'], unit='s')
                         fixations.insert(1, 'Timecode', timeReadable.dt.strftime('%M:%S.%f'))
                         multiData.setNode('fixations',file.get('id'),fixations)
 
@@ -161,7 +180,7 @@ class DataReader():
                         #                    'Gaze event duration','Eye movement type index',
                         #                    'Start gaze point X','Start gaze point Y',
                         #                    'End gaze point X','End gaze point Y']]
-                        timeReadable=pandas.to_datetime(saccades['Recording timestamp'], unit='s')
+                        timeReadable=pd.to_datetime(saccades['Recording timestamp'], unit='s')
                         saccades.insert(1,'Timecode',timeReadable.dt.strftime('%M:%S.%f'))
                         multiData.setNode('saccades',file.get('id'),saccades)
 
@@ -214,7 +233,7 @@ class DataReader():
                 if os.path.exists(manuFile):
                     self.topWindow.setStatus('Reading manu annotation (file ' + os.path.basename(manuFile) + ')...')
                     skiprows=self.determineSkiprows(manuFile,'"#')
-                    manuData = pandas.read_table(manuFile, skiprows=skiprows)
+                    manuData = pd.read_table(manuFile, skiprows=skiprows)
                     #названия столбцов не всегда одинаковые в разных записях
                     manuData.rename(columns={col: re.sub('.*m.*gesture.*', 'mGesture', col, flags=re.IGNORECASE) for col in manuData.columns}, inplace=True)
                     #manuData.rename(columns={col: re.sub('.*lt.*phases.*','mLtPhases',col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
@@ -236,8 +255,21 @@ class DataReader():
         :param serial:
         :return:
         """
-        pass
-
+        self.topWindow.logger.debug('reading ceph data...')
+        settingsCeph = settingsReader.getTypes('ceph')
+        if len(settingsCeph):
+            self.topWindow.setStatus('Reading ceph annotations...')
+            for file in settingsCeph:
+                cephFile = settingsReader.dataDir + '/' + file.get('path')
+                if os.path.exists(cephFile):
+                    self.topWindow.setStatus('Reading ceph annotation (file ' + os.path.basename(cephFile) + ')...')
+                    cephData = Eaf(cephFile)
+                    multiData.setNode('ceph', file.get('id'), cephData)
+                    file.set('md5', self.md5(cephFile))
+                else:
+                    self.topWindow.setStatus('Ceph file specified in settings (' + os.path.basename(cephFile) + ') does not exist!')
+        else:
+            self.topWindow.setStatus('No ceph annotations specified in settings.')
 
 
     def readOcul(self, settingsReader, multiData, serial: bool = False) -> None:
@@ -256,7 +288,7 @@ class DataReader():
                 oculFile = settingsReader.dataDir + '/' + file.get('path')
                 if os.path.exists(oculFile):
                     self.topWindow.setStatus('Reading ocul annotation (file ' + os.path.basename(oculFile) + ')...')
-                    oculData = pandas.read_excel(oculFile, header=None,
+                    oculData = pd.read_excel(oculFile, header=None,
                                                  names=('Timecode',
                                                         'Gaze event duration',
                                                         'Id', 'Tier'),

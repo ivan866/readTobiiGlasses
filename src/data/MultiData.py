@@ -2,8 +2,8 @@ from datetime import timedelta
 
 from pandas import DataFrame
 
-from SettingsReader import SettingsReader
 
+from SettingsReader import SettingsReader
 from data import Utils
 
 
@@ -25,12 +25,46 @@ class MultiData():
         self.multiData['saccades'] = {}
         self.multiData['eyesNotFounds'] = {}
         self.multiData['unclassifieds'] = {}
+        self.multiData['imu'] = {}
         self.multiData['gyro'] = {}
-        #self.multiData['accel'] = {}
+        self.multiData['accel'] = {}
         self.multiData['voc'] = {}
         self.multiData['manu'] = {}
         self.multiData['ceph'] = {}
         self.multiData['ocul'] = {}
+
+
+    # def __iter__(self,channel:str):
+    #     """
+    #
+    #     :param channel: On which channel to iterate.
+    #     :return:
+    #     """
+    #
+    # #FIXME should return interface, not class
+    # def __next__(self)->DataFrame:
+    #     """
+    #
+    #     :return:
+    #     """
+
+    #TODO replace camelcase methods with underscores everywhere
+    def genChannelIds(self,channel:str)->tuple:
+        """Generator of ids present in multiData in particular channel.
+
+        :param channel:
+        :return: Tuple with current channel and id, if such id present in multiData.
+        """
+        if self.settingsReader.check() and self.check():
+            if channel == 'fixations' or channel == 'saccades' or channel == 'eyesNotFounds' or channel == 'unclassifieds' or channel == "imu" or channel == "gyro" or channel == "accel":
+                channelZeroName = 'gaze'
+            else:
+                channelZeroName = channel
+            for file in self.settingsReader.getTypes(channelZeroName):
+                id=file.get('id')
+                if self.hasChannelById(channel, id):
+                    yield (channel, id)
+
 
 
 
@@ -65,15 +99,16 @@ class MultiData():
         self.topWindow.logger.debug('get channel by id')
         return self.multiData[channel][id]
 
-    def getChannelAndTag(self,channel:str,id:str)->object:
+    def getChannelAndTag(self,channel:str,id:str,ignoreEmpty:bool=True)->object:
         """Returns what's inside the given channel, but tags the data by record tag, id and interval first.
         
         :param channel: 
-        :param id: 
+        :param id:
+        :param ignoreEmpty: Whether to cut off the empty and utility intervals.
         :return: 
         """
         chData = self.getChannelById(channel, id)
-        if channel=='fixations' or channel=='saccades' or channel=='eyesNotFounds' or channel=='unclassifieds' or channel=="gyro":
+        if channel=='fixations' or channel=='saccades' or channel=='eyesNotFounds' or channel=='unclassifieds' or channel=="imu" or channel=="gyro" or channel=="accel":
             channelZeroName='gaze'
         else:
             channelZeroName=channel
@@ -82,7 +117,24 @@ class MultiData():
         if ('Record tag' not in chData.columns) and ('Id' not in chData.columns):
             chData.insert(1, 'Record tag', pathAttr)
             chData.insert(2, 'Id', id)
-        return self.tagIntervals(chData, startFrom)
+        return self.tagIntervals(chData, startFrom, ignoreEmpty=ignoreEmpty)
+
+    def getMeansByInterval(self,channel:str,id:str,interval:str):
+        """Returns mean value of a channel in particular interval. Useful for calculating baseline noise in _static intervals.
+
+        :param channel:
+        :param id:
+        :param interval: interval id to calculate on.
+        :return: DataFrame with mean values for each column or None if specified interval does not exist.
+        """
+        data = self.getChannelAndTag(channel, id, ignoreEmpty=False)
+        calculated=data.groupby(by=['Interval'], sort=False).agg(['mean'])
+        if interval in calculated.index:
+            return calculated.loc[interval, :]
+        else:
+            return None
+
+
 
     def getDataBetween(self,data:object,timeStart:object,timeEnd:object) -> object:
         """Selects and returns those data where timestamp is in given interval range.
@@ -142,20 +194,25 @@ class MultiData():
     #     endTime = self.settingsReader.getEndTimeById(intZ)+startFrom
     #     return self.getDataBetween(data,startTime,endTime)
 
-    def tagIntervals(self,chData:object,startFrom:object)->DataFrame:
+    def tagIntervals(self, chData:object, startFrom:object, ignoreEmpty:bool=True)->DataFrame:
         """Tags given data by intervals, then returns a single dataframe.
         
         :param data: data to stack intervals from, usually after getChannelById method.
         :param startFrom: zeroTime to start from.
+        :param ignoreEmpty: Whether to cut off the empty and utility intervals.
         :return: DataFrame object ready to group by intervals.
         """
         data=[]
-        for interval in self.settingsReader.getIntervals():
+        ints=self.settingsReader.getIntervals(ignoreEmpty=ignoreEmpty)
+        for interval in ints:
             intData=self.getDataInterval(chData, startFrom, interval.get('id'))
             intData.insert(2,'Interval',interval.get('id'))
             data.append(intData)
 
-        data=data[0].append(data[1:])
+        if len(ints)==1:
+            data=data[0]
+        else:
+            data=data[0].append(data[1:])
 
 
         zeroBased=[]
@@ -204,6 +261,7 @@ class MultiData():
 
 
 
+
     def check(self) -> bool:
         """Helper method that checks if multiData present at all.
         
@@ -228,4 +286,5 @@ class MultiData():
         :return: True if no errors found, False if data contains nonsense or mutually exclusive attributes.
         """
         #TODO issue #10
+        #TODO проверить чтобы длины интервалов не выходили за пределы самой записи, а в статистике при этом должны выводиться фактические суммарные длительности, а не декларированные в настройках
         pass

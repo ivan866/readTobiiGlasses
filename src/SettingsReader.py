@@ -9,8 +9,11 @@ import xml.etree.ElementTree as ET
 
 from tkinter import filedialog
 
-import numpy
-import pandas
+
+import numpy as np
+
+import pandas as pd
+
 
 from data import Utils
 
@@ -115,8 +118,8 @@ class SettingsReader:
 
         self.topWindow.setStatus('Settings parsed ('+self.settingsFile+').')
 
-        if len(self.getIntervals()) == 0:
-            self.topWindow.setStatus('No intervals specified. Please explicitly specify at least 1 interval in settings file.')
+        if len(self.getIntervals(ignoreEmpty=True)) == 0:
+            self.topWindow.setStatus('No intervals specified. Please explicitly specify at least 1 named interval in settings file.')
 
 
     def readBatch(self,pivotData:object,stats:object)->None:
@@ -190,7 +193,7 @@ class SettingsReader:
         l=[]
         for el in elements:
             l.append(el.get(field))
-        return numpy.unique(l)
+        return np.unique(l)
 
     def getPathAttrById(self,type:str,id:str,absolute:bool=False)->str:
         """Returns path of a file suitable as a record tag.
@@ -256,11 +259,11 @@ class SettingsReader:
     def getIntervals(self,ignoreEmpty:bool=True) -> list:
         """Returns all intervals.
         
-        :param ignoreEmpty: Whether to cut off the empty intervals.
+        :param ignoreEmpty: Whether to cut off the empty and utility intervals.
         :return: A list of interval nodes from settings.
         """
         if ignoreEmpty:
-            return [interval for interval in self.settings.findall("interval") if interval.get('id')]
+            return [interval for interval in self.settings.findall("interval") if interval.get('id') and '_' not in interval.get('id')]
         else:
             return self.settings.findall("interval")
 
@@ -326,7 +329,7 @@ class SettingsReader:
         :return: A list.
         """
         durs = []
-        for interval in self.getIntervals():
+        for interval in self.getIntervals(ignoreEmpty=True):
             durs.append(self.getDurationById(interval.get('id'),parse))
         return durs
 
@@ -336,7 +339,7 @@ class SettingsReader:
         :param parse: bool whether to parse str to timedelta or not.
         :return: Duration of interval in timedelta or str format.
         """
-        dur=pandas.DataFrame(self.getDurations(True)).sum()[0]
+        dur=pd.DataFrame(self.getDurations(True)).sum()[0]
         if parse:
             return dur
         else:
