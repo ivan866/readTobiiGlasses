@@ -2,16 +2,16 @@
 
 # Интерпретатор Python 3.x
 
-В программе использованы модули pandas. Если вы работаете под Windows, рекомендуется установить дистрибутив Anaconda Python 3.x (<https://www.anaconda.com/download/>). Рекомендуется устанавливать от имени Администратора. Под MacOS и Linux после установки стандартного Python 3 (python.org/downloads/) достаточно воспользоваться встроенным средством установки пакетов:
+В программе использован модуль pandas. Если вы работаете под Windows, рекомендуется установить дистрибутив Anaconda Python 3.x (<https://www.anaconda.com/download/>). Рекомендуется устанавливать от имени Администратора. Под MacOS и Linux после установки стандартного Python 3 (python.org/downloads/) достаточно воспользоваться встроенным средством установки пакетов:
 
     python -m pip install pandas
 	
 	
 # Установка
 
-Для установки пакетов зависимостей (pympi-ling, sqlalchemy, skinematics) автоматически перед первым использованием программы запустите скрипт setup.py, или воспользуйтесь менеджером пакетов (pip):
+Для установки пакетов зависимостей автоматически (pympi-ling, sqlalchemy, skinematics) перед первым использованием программы воспользуйтесь менеджером пакетов (pip):
 
-    python -m pip install pympi-ling sqlalchemy scikit-kinematics
+    python -m pip install -r requirements.txt
 	
 	
 Также для сохранения анимации гироскопа необходимо иметь на компьютере утилиту ffmpeg, внесенную в переменную среды PATH.
@@ -20,10 +20,6 @@
 ## Данные
 
 Данные айтрекинга необходимо экспортировать через Tobii ProLab в формат tsv. При экспорте нужно отметить галочки для Recording timestamp, Gaze point, Gaze 3D Position, Gaze direction, Pupil position, Pupil diameter, Eye movement type, Gaze event, Gyro, Accelerometer. Рекомендуется убрать галочки для Project name, Export date, Recording start time, Recording duration, Recording Fixation filter name, а также всех полей Mapped (если вы не используете автоматическое картирование на AOI).
-
-Аннотации из ELAN необходимо экспортировать в формат txt (File>Export as>Tab-delimeted Text). Обязательно при экспорте отметить галочки Separate column for each tier, Include time column for Begin time, Duration; Include time format ss.msec. ВАЖНО: обязательно снять галочку Repeat values of annotations spanning other annotations.
-
-Аннотации глаз типа ocul можно оставить в формате Excel.
 
 Из столбцов времени считываются абсолютные значения, как привязанные к общему нулю для всех каналов для данного участника. При этом столбец с временной меткой не обязательно должен начинаться с 0:00.000, но это значение должно иметь привязку к общему нулю.
 
@@ -45,7 +41,7 @@
 Если требуется исключить какой-то файл из анализа, просто удалите всю строку <file>.
 
 
-## Описание пакетного bat-файла
+## Описание пакетного .bat-файла (.sh под MacOS и Linux)
 
 Утилита поддерживает режим запуска из командной строки. При этом окно интерфейса будет отображаться на экране, но взаимодействие с ним будет недоступно. Все необходимые функции при этом выполнятся автоматически, и сгенерируется статистический отчет.
 

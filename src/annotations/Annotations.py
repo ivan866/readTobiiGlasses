@@ -74,6 +74,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             # rotationD=skinematics.quat.quat2deg(sensor.quat)
 
             # находим результирующую между тремя ортогональными углами
+            #TODO попробовать детекцию без результирующих
             topWindow.setStatus('Finding result rotation...')
             angVel = gyro[['Gyro X', 'Gyro Z', 'Gyro Y']].as_matrix()
             angVelScalar = []
@@ -102,7 +103,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             topWindow.setStatus('Filtering ceph motion...')
             topWindow.setStatus('Rotation component...')
             filter = IVTFilter()
-            #TODO как вариант подюирать пороги на основании шума в каждой конкретной записи или даже интервале
+            #TODO как вариант подбирать пороги на основании шума в каждой конкретной записи или даже интервале
             filter.setParameter('min_velocity', 10.0)  # минимальная скорость движения
             filter.setParameter('noise_level', 3.0)  # максимальная скорость на границах движения
             filter.setParameter('min_static', 0.4)  # минимальная длительность отсутствия движения, s
