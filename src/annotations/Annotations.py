@@ -154,7 +154,6 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
         topWindow.setStatus('Nothing was saved. No gyroscope data!')
 
 
-
 #TODO парование интервалов из greenpeople и ручной аннотации, затем ! поиск кластеров там, где много мелких кусков в GP
 #TODO type attribute must be case insensitive
 def qualityAssessment(topWindow, multiData, settingsReader:object,dataExporter:object) -> None:

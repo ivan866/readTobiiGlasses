@@ -1,1 +1,1 @@
-g:\ProgramData\Anaconda3\python ReadTobiiGlasses.py --help
+g:\ProgramData\Anaconda3\python ReadTobiiGlasses.py

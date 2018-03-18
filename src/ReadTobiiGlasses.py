@@ -53,7 +53,7 @@ class ReadTobiiGlasses():
         :param gui: Whether to start gui.
         """
         #TODO command line procedure for gyro2eaf with custom arguments
-        #TODO tests
+        #TODO !tests and throws exception coding style
         #TODO add INSTALLING, and environment setup script, как сделать python package с манифестом пакета
 		#TODO add bash script for batch
         #TODO add cli equivalent commands copied to report with actual arguments
@@ -129,6 +129,9 @@ class ReadTobiiGlasses():
         annotationMenu = Menu(self.rootMenu, tearoff=0)
         annotationMenu.add_command(label="Sanity check", command=lambda: self.setStatus('Not implemented.'))
         annotationMenu.add_command(label="Gyroscope (ceph motion) to ELAN", command=lambda: Annotations.imuToEaf(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
+        annotationMenu.add_command(label="Hand tracking (manu motion) to ELAN (Pyper)", command=lambda: Annotations.callPyper(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
+        annotationMenu.add_command(label="Export Pyper CSV to EAF", command=lambda: Annotations.pyperToEaf(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
+        annotationMenu.add_command(label="Motion detection quality assessment", command=lambda: Annotations.qualityAssessment(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
         annotationMenu.add_command(label="Voc/ocul transcript", command=lambda: self.setStatus('Not implemented.'))
         self.rootMenu.add_cascade(label="Annotation", menu=annotationMenu)
 
@@ -194,8 +197,8 @@ class ReadTobiiGlasses():
 
         helpMenu = Menu(self.rootMenu, tearoff=0)
         manualsMenu = Menu(helpMenu, tearoff=0)
-        manualsMenu.add_command(label="Tobii gyroscope data format", command=lambda: self.gotoWeb('glasses2API'))
         manualsMenu.add_command(label="Tobii coordinate systems", command=lambda: self.gotoWeb('coordSys'))
+        manualsMenu.add_command(label="Tobii gyroscope data format", command=lambda: self.gotoWeb('glasses2API'))
         helpMenu.add_cascade(label="Manuals", menu=manualsMenu)
         helpMenu.add_command(label="FAQ", command=lambda: self.gotoWeb('FAQ'))
         helpMenu.add_command(label="Wiki", command=lambda: self.gotoWeb('wiki'))
@@ -293,6 +296,7 @@ class ReadTobiiGlasses():
         if not serial:
             sys.exit()
 
+    #FIXME не доделано?
     def batchGyroscope(self,args:object)->None:
         """
 

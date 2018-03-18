@@ -4,6 +4,8 @@ import xml.etree.ElementTree as ET
 
 
 
+from pandas import DataFrame
+
 import sqlalchemy
 
 from SettingsReader import SettingsReader
@@ -130,6 +132,9 @@ class DataExporter():
 
 
     #TODO SQL export issue + praat annotations
+    #TODO надо почитать как вообще комбинируются запросы в текстовое выражение, какие приемы существуют
+    #TODO форму преобразования в таблицы см. в описании issue
+    #TODO сначала проверить что txt и eaf считались идентично
     def exportSQL(self,multiData:object)->None:
         """Writes all data to SQl database using SQLite.
 
@@ -137,15 +142,12 @@ class DataExporter():
         :return:
         """
         #TODO pivotData export to SQL
-        # if self.settingsReader.check() and multiData.check():
-        #     self.topWindow.setStatus('Creating SQL database...')
-        #     saveDir = self.createDir(prefix='export')
-        #     dbFile=saveDir+'/sqlite.db'
-        #     conn=sqlite3.connect(dbFile)
-        #     multiData.getChannelById('ocul','N').to_sql('ocul',conn)
-        #
-        #     self.topWindow.setStatus('Database ready. Intervals trimmed and tagged.')
-        #     self.copyMeta()
-        # else:
-        #     self.topWindow.setStatus('WARNING: No data loaded yet. Read data first!')
-        pass
+        if self.settingsReader.check() and multiData.check():
+            self.topWindow.setStatus('Creating SQL database...')
+            saveDir = self.createDir(prefix='export')
+            dbFile=saveDir+'/db.sql'
+            conn=sqlalchemy.connect(dbFile)
+            multiData.getChannelAndTag('ocul','N').to_sql('ocul', conn, flavor='mysql')
+
+            self.topWindow.setStatus('Database ready. Intervals trimmed and tagged.')
+            self.copyMeta()

@@ -1,5 +1,6 @@
 import argparse
 import os
+import hashlib
 import shutil
 import re
 import subprocess
@@ -79,6 +80,8 @@ class SettingsReader:
             self.dataDir=os.path.dirname(self.settingsFile)
             #TODO add watchdog when file modified - reread data
             self.topWindow.setStatus('Settings file selected (not read or modified yet).')
+        else:
+            self.topWindow.setStatus('WARNING: Nothing selected. Please retry.')
 
     def selectBatch(self,pivotData:object,stats:object)-> None:
         """Parses .bat file and runs every script with every settings file in it. Then combines reports together for summary statistic analysis.
@@ -119,7 +122,7 @@ class SettingsReader:
         self.topWindow.setStatus('Settings parsed ('+self.settingsFile+').')
 
         if len(self.getIntervals(ignoreEmpty=True)) == 0:
-            self.topWindow.setStatus('No intervals specified. Please explicitly specify at least 1 named interval in settings file.')
+            self.topWindow.setStatus('WARNING: No intervals specified. Please explicitly specify at least 1 named interval in settings file.')
 
 
     def readBatch(self,pivotData:object,stats:object)->None:
@@ -145,6 +148,7 @@ class SettingsReader:
 
         pivotData.pivot(settingsReader=self,stats=stats)
 
+        #нет ли дубля с функцией DataExporter.saveMeta()?
         self.saveSerial()
         shutil.copy2(self.batchFile, self.batchDir + '/' + os.path.basename(self.batchFile))
         self.topWindow.setStatus('Batch complete. Pivot tables ready.')
@@ -162,6 +166,23 @@ class SettingsReader:
 
     #data filtering functions
     #data files
+    def genTypeFile(self,type:str)->object:
+        """Generator of ids of particular type present in settings.
+
+        :param channel:
+        :return: File XML element from settings, if such file exists on disk.
+        """
+        if self.check():
+            for elem in self.getTypes(type):
+                file=self.dataDir + '/' + elem.get('path')
+                if os.path.exists(file):
+                    #добавляем контрольную сумму в настройки
+                    elem.set('md5', self.md5(file))
+                    yield elem
+                else:
+                    self.topWindow.setStatus('WARNING: File specified in settings (' + os.path.basename(file) + ') does not exist!')
+
+
     def getIds(self,id:str) -> list:
         """Queries settings for nodes with particular id attribute.
         
@@ -377,3 +398,17 @@ class SettingsReader:
         if not saveDir:
             saveDir=self.batchDir
         self.batchSettingsTree.write(saveDir + '/readTobiiGlassesSettings-'+os.path.splitext(os.path.basename(self.batchFile))[0]+'.xml')
+
+    def md5(self,fname:str)->str:
+        """Calculates and returns MD5 hash checksum of a file.
+
+        From https://stackoverflow.com/a/3431838/2795533
+
+        :param fname: file path.
+        :return: md5 hex value.
+        """
+        hash_md5 = hashlib.md5()
+        with open(fname, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()

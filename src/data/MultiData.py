@@ -1,3 +1,5 @@
+#from sys import getsizeof
+
 from datetime import timedelta
 
 from pandas import DataFrame
@@ -32,6 +34,7 @@ class MultiData():
         self.multiData['manu'] = {}
         self.multiData['ceph'] = {}
         self.multiData['ocul'] = {}
+        self.empty = True
 
 
     # def __iter__(self,channel:str):
@@ -85,6 +88,7 @@ class MultiData():
         """
         self.topWindow.logger.debug('setting data node...')
         self.multiData[channel][id] = data
+        self.empty=False
 
 
     #filter data methods
@@ -268,10 +272,10 @@ class MultiData():
         :return: True if it is, False otherwise.
         """
         self.topWindow.logger.debug('check data')
-        if self.multiData:
+        if not self.empty:
             return True
         else:
-            self.topWindow.setStatus('Read data first!')
+            self.topWindow.setStatus('WARNING: No data loaded yet. Read data first!')
             return False
 
 

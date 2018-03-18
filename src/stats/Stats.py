@@ -142,6 +142,7 @@ class Stats():
 
 
 
+    #TODO починить функцию с новыми настройками
     def descriptive(self,multiData,dataExporter:object,serial:bool=False,savePath:str='') -> None:
         """Basic data summary.
 
@@ -161,7 +162,7 @@ class Stats():
 
         #статистика
         if self.settingsReader.settings.find("interval[@id='']") is not None:
-            self.topWindow.setStatus('Warning: unnamed intervals skipped!')
+            self.topWindow.setStatus('WARNING: Unnamed intervals skipped!')
 
         for channel in multiData.multiData['fixations']:
             fData = multiData.getChannelAndTag('fixations', channel)
