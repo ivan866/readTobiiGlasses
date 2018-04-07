@@ -53,11 +53,10 @@ class ReadTobiiGlasses():
         :param gui: Whether to start gui.
         """
         #TODO command line procedure for gyro2eaf with custom arguments
-        #TODO !tests and throws exception coding style
-        #TODO add INSTALLING, and environment setup script, как сделать python package с манифестом пакета
+        #TODO !tests and raises error coding style
+        #TODO add environment setup script, как сделать python package с манифестом пакета
 		#TODO add bash script for batch
         #TODO add cli equivalent commands copied to report with actual arguments
-		#TODO CHANGES.TXT
         #TODO sync package API
         self.LOG_FORMAT="%(levelname)s %(asctime)s %(pathname)s at %(lineno)s - %(message)s"
         logging.basicConfig(filename='readTobiiGlasses.log',

@@ -6,6 +6,7 @@ import pandas as pd
 
 
 from pympi.Elan import Eaf
+from pympi.Praat import TextGrid
 
 
 
@@ -71,10 +72,10 @@ class DataReader():
         """
         self.topWindow.setStatus('Reading gaze data...')
         for fileElem in settingsReader.genTypeFile('gaze'):
-            filePath = fileElem.get('path')
+            filePath = settingsReader.getPathAttrById('gaze', fileElem.get('id'), absolute=True)
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading gaze data (' + os.path.basename(filePath) + ')...')
-            if fileExt.lower()=='tsv':
+            if fileExt.lower()=='.tsv':
                 # узнаем какие столбцы присутствуют
                 headers = pd.read_table(filePath, nrows=1, encoding='UTF-16')
                 availColumns = [i for i in list(headers.columns) if re.match('Recording timestamp|Gaze point|Gaze 3D position|Gaze direction|Pupil diameter|Eye movement type|Gaze event duration|Fixation point|Gyro|Accelerometer',i)]
@@ -139,7 +140,7 @@ class DataReader():
                                     (gazeData['Eye movement type'] == 'EyesNotFound')]
 
 
-                if multiData.hasColumn('Eye movement type',file.get('id')):
+                if multiData.hasColumn('Eye movement type',fileElem.get('id')):
                     # вырезаем строки с фиксациями
                     fixations = gazeData.loc[gazeData['Eye movement type'] == 'Fixation'][['Recording timestamp',
                                                                                            'Gaze event duration',
@@ -207,11 +208,13 @@ class DataReader():
                                    axis=1, inplace=True)
 
                 multiData.setNode('gaze',fileElem.get('id'),gazeData)
-            elif fileExt.lower() == 'json':
+            #TODO
+            elif fileExt.lower() == '.json':
                 pass
 
 
 
+    #TODO parse and read voc_scores file type
     def readVoc(self, settingsReader, multiData) -> None:
         """Reads voc annotation from TextGrid file.
 
@@ -219,32 +222,23 @@ class DataReader():
         :param multiData:
         :return:
         """
-        self.topWindow.logger.debug('reading manu data...')
-        settingsManu = settingsReader.getTypes('manu')
-        if len(settingsManu):
-            self.topWindow.setStatus('Reading manu annotations...')
-            for file in settingsManu:
-                manuFile = settingsReader.dataDir + '/' + file.get('path')
-                if os.path.exists(manuFile):
-                    self.topWindow.setStatus('Reading manu annotation (' + os.path.basename(manuFile) + ')...')
-                    skiprows=self.determineSkiprows(manuFile,'"#')
-                    manuData = pd.read_table(manuFile, skiprows=skiprows)
-                    #названия столбцов не всегда одинаковые в разных записях
-                    manuData.rename(columns={col: re.sub('.*m.*gesture.*', 'mGesture', col, flags=re.IGNORECASE) for col in manuData.columns}, inplace=True)
-                    #manuData.rename(columns={col: re.sub('.*lt.*phases.*','mLtPhases',col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
-                    #manuData.rename(columns={col: re.sub('.*rt.*phases.*', 'mRtPhases', col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
-                    multiData.setNode('manu',file.get('id'),manuData)
-                else:
-                    self.topWindow.setStatus('WARNING: Manu file specified in settings (' + os.path.basename(manuFile) + ') does not exist!')
-        else:
-            self.topWindow.setStatus('No manu annotations specified in settings.')
+        self.topWindow.setStatus('Reading voc annotations...')
+        for fileElem in settingsReader.genTypeFile('voc'):
+            filePath=settingsReader.getPathAttrById('voc',fileElem.get('id'),absolute=True)
+            fileExt = os.path.splitext(filePath)[1]
+            self.topWindow.setStatus('Reading voc annotation (' + os.path.basename(filePath) + ')...')
+            if fileExt.lower() == '.textgrid':
+                #WARNING: encoding hard-coded
+                vocData = TextGrid(filePath,codec='utf-16-be')
+
+            multiData.setNode('voc', fileElem.get('id'), vocData)
 
 
 
-    #TODO change to read eaf
     #TODO add format-aware parser (eaf, txt) for manu and ceph annotations
     #TODO setStatus какой формат обнаружен
     #TODO add parsing to table form
+    #TODO refactor all data read methods to callbacks with arguments of channel type
     def readManu(self, settingsReader, multiData) -> None:
         """Reads manu annotation from txt or eaf file.
 
@@ -254,12 +248,12 @@ class DataReader():
         """
         self.topWindow.setStatus('Reading manu annotations...')
         for fileElem in settingsReader.genTypeFile('manu'):
-            filePath=fileElem.get('path')
+            filePath=settingsReader.getPathAttrById('manu',fileElem.get('id'),absolute=True)
             fileExt=os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading manu annotation (' + os.path.basename(filePath) + ')...')
-            if fileExt.lower()=='eaf':
-
-            elif fileExt.lower()=='txt':
+            if fileExt.lower()=='.eaf':
+                manuData = Eaf(filePath)
+            elif fileExt.lower()=='.txt':
                 skiprows = self.determineSkiprows(filePath, '"#')
                 manuData = pd.read_table(filePath, skiprows=skiprows)
                 # названия столбцов не всегда одинаковые в разных записях
@@ -280,10 +274,10 @@ class DataReader():
         """
         self.topWindow.setStatus('Reading ceph annotations...')
         for fileElem in settingsReader.genTypeFile('ceph'):
-            filePath = fileElem.get('path')
+            filePath=settingsReader.getPathAttrById('ceph',fileElem.get('id'),absolute=True)
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading ceph annotation (' + os.path.basename(filePath) + ')...')
-            if fileExt.lower() == 'eaf':
+            if fileExt.lower() == '.eaf':
                 cephData = Eaf(filePath)
 
             multiData.setNode('ceph', fileElem.get('id'), cephData)
@@ -299,12 +293,12 @@ class DataReader():
         """
         self.topWindow.setStatus('Reading ocul annotations...')
         for fileElem in settingsReader.genTypeFile('ocul'):
-            filePath = fileElem.get('path')
+            filePath=settingsReader.getPathAttrById('ocul',fileElem.get('id'),absolute=True)
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading ocul annotation (' + os.path.basename(filePath) + ')...')
-            if fileExt.lower() == 'eaf':
-                pass
-            elif fileExt.lower() == 'xls':
+            if fileExt.lower() == '.eaf':
+                oculData = Eaf(filePath)
+            elif fileExt.lower() == '.xls':
                 oculData = pd.read_excel(filePath, header=None,
                                          names=('Timecode',
                                                 'Gaze event duration',
