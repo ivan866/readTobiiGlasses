@@ -85,11 +85,13 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             angVelScalar = savgol_filter(angVelScalar, 5, 2)
             gyro.insert(4, 'angVelScalar', angVelScalar)
 
-            # результрующий вектор скорости
+            # результирующий вектор скорости
             # TODO добавить график скорости головы в меню, и просмотреть его
             # TODO статистика амплитуд, скоростей и длительностей всех движений головы (main sequence)
-            topWindow.setStatus('Finding result velocity...')
-            vel = np.vstack(([0, 0, 0], np.diff(np.vstack(([0, 0, 0],cumtrapz(y=acc, x=imu['TimestampZeroBased'], axis=0))),axis=0)))
+            topWindow.setStatus('Finding jolt...')
+            #topWindow.setStatus('Finding result velocity...')
+            vel = np.vstack(([0, 0, 0], np.diff(acc, axis=0)))
+            #vel = np.vstack(([0, 0, 0], np.diff(np.vstack(([0, 0, 0],cumtrapz(y=acc, x=imu['TimestampZeroBased'], axis=0))),axis=0)))
             velScalar = []
             for x, z, y in vel:
                 velXY = math.hypot(x, y)
@@ -97,6 +99,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
                 velScalar.append(velXYZ)
             velScalar = savgol_filter(velScalar, 5, 2)
             imu.insert(4, 'velScalar', velScalar)
+
 
             # detecting head motion
             state = 'motions'
@@ -112,10 +115,10 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             result = filter.getResultFiltered(state)
             topWindow.setStatus('I-VT filter finished, with parameters: ' + filter.printParams() + '. ' + str(result.shape[0]) + ' ' + state + ' found.')
 
-            topWindow.setStatus('Velocity component...')
+            topWindow.setStatus('Jolt component...')
             filter2 = IVTFilter()
-            filter2.setParameter('min_velocity', 0.12)
-            filter2.setParameter('noise_level', 0.09)
+            filter2.setParameter('min_velocity', 0.3)
+            filter2.setParameter('noise_level', 0.12)
             filter2.setParameter('min_static', 0.4)
             filter2.setParameter('min_motion', 0.150)
             filter2.process(data=imu[['TimestampZeroBased', 'velScalar']])
@@ -129,18 +132,31 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             cephFile = settingsReader.getPathAttrById('ceph', id)
             ceph = multiData.getChannelById('ceph', id)
             tier = id + '-cGyro' + state.capitalize()
-            tier2 = id + '-cVelocity' + state.capitalize()
+            tier2 = id + '-cJolt' + state.capitalize()
+            #tier2 = id + '-cVelocity' + state.capitalize()
             ceph.add_tier(tier_id=tier, ling='Default', part=id, ann=topWindow.PROJECT_NAME)
-            ceph.add_tier(tier_id=tier2, ling='Default', parent=tier, part=id,
-                          ann=topWindow.PROJECT_NAME)
+            ceph.add_tier(tier_id=tier2, ling='Default', part=id,ann=topWindow.PROJECT_NAME)
             for index, row in result.iterrows():
                 ceph.add_annotation(id_tier=tier, start=int(row['min'] * 1000), end=int(row['max'] * 1000),
                                     value=str(int(round(row['mean']))) + ' deg/s')
             for index, row in result2.iterrows():
                 ceph.add_annotation(id_tier=tier2, start=int(row['min'] * 1000), end=int(row['max'] * 1000),
-                                    value=str(round(row['mean'], 1)) + ' m/s')
+                                    value=str(round(row['mean'], 1)) + ' m/s^3')
             eafFile = saveDir + '/' + os.path.splitext(cephFile)[0] + '-gyro.eaf'
             topWindow.setStatus('Saving ELAN file ({0}).'.format(eafFile))
             ceph.to_file(eafFile)
         else:
             topWindow.setStatus('Cephalic annotation not specified! No ELAN file to add tier to.')
+
+    if written:
+        dataExporter.copyMeta()
+    else:
+        topWindow.setStatus('Nothing was saved. No gyroscope data!')
+
+
+
+#TODO парование интервалов из greenpeople и ручной аннотации, затем ! поиск кластеров там, где много мелких кусков в GP
+#TODO type attribute must be case insensitive
+def qualityAssessment(topWindow, multiData, settingsReader:object,dataExporter:object) -> None:
+    pass
+
