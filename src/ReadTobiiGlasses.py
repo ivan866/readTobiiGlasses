@@ -67,6 +67,7 @@ class ReadTobiiGlasses():
 
         self.PROJECT_NAME='Read Tobii Glasses'
         self.PROJECT_NAME_SHORT='RTG'
+        self.VIDEO_FRAMERATE=100
         self.logger.debug('creating tk root..')
         self.root = Tk()
         self.root.geometry('640x400')

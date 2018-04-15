@@ -25,7 +25,7 @@ from pympi.Elan import Eaf
 # TODO в wiki вставить графики скорости и описать как происходит детекция и расширение границ
 #FIXME можно вынести код детекции в отдельный класс gyro
 def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) -> None:
-    """Detects cephalic motion, generates tiers and exports to .eaf files
+    """Detects cephalic motion, generates tiers and exports to .eaf files, containing ceph annotations.
 
     :param topWindow:
     :param multiData:
@@ -66,7 +66,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             #topWindow.setStatus('Integrating sensor data...')
             #FIXME указан множитель параметра omega для приведения данных к визуально правдоподобным значениям
             #TODO проверить графики скорости с offset (как можно дальше фильтровать скорость?, - она уже почти нормальная, только дрейфует) и без него, с приведением к радианам и без него
-            #sensor = TobiiMEMS(in_data={'rate': 100, 'acc': acc, 'omega': angVel / 180 * sp.constants.pi})
+            #sensor = TobiiMEMS(in_data={'rate': topWindow.VIDEO_FRAMERATE, 'acc': acc, 'omega': angVel / 180 * sp.constants.pi})
 
             #в пакете она почему-то считается накопительной с помощью функции cumtrapz
             # positionM=np.vstack(([0, 0, 0], np.diff(sensor.pos,axis=0)))
@@ -146,7 +146,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             topWindow.setStatus('Saving ELAN file ({0}).'.format(eafFile))
             ceph.to_file(eafFile)
         else:
-            topWindow.setStatus('Cephalic annotation not specified! No ELAN file to add tier to.')
+            topWindow.setStatus('Cephalic annotation pair not specified! No ELAN file to add tier to.')
 
     if written:
         dataExporter.copyMeta()
@@ -154,8 +154,99 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
         topWindow.setStatus('Nothing was saved. No gyroscope data!')
 
 
+
+def callPyper(topWindow, multiData, settingsReader:object,dataExporter:object) -> None:
+    """
+
+    :param topWindow:
+    :param multiData:
+    :param settingsReader:
+    :param dataExporter:
+    :return:
+    """
+    pass
+
+
+def pyperToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) -> None:
+    """Reads and parses Pyper output csv file, then exports to .eaf containing manu annotations.
+
+    :param topWindow:
+    :param multiData:
+    :param settingsReader:
+    :param dataExporter:
+    :return:
+    """
+    #TODO refactor 'written' mechanism (all occurences) to callbacks
+    written=False
+    for fileElem in settingsReader.genTypeFile('pyper'):
+        id=fileElem.get('id')
+        if multiData.hasChannelById('manu', id):
+            filePath = settingsReader.getPathAttrById('pyper', id, absolute=True)
+            fileExt = os.path.splitext(filePath)[1]
+            topWindow.setStatus('Reading Pyper output (' + os.path.basename(filePath) + ')...')
+            if fileExt.lower() == '.csv':
+                pyperData = pd.read_csv(filePath, header=None, sep=',', decimal='.', encoding='utf-8',
+                                        names=['frame','x','y'], dtype={'frame':int,'x':float,'y':float})
+
+                topWindow.setStatus('Finding hands distance (per frame)...')
+                dist = []
+                diffed=np.vstack(([0, 0, 0], np.diff(pyperData,axis=0)))
+                pyperData[['x','y']]=diffed[:,1:3]
+                for index, row in pyperData.iterrows():
+                    distXY = math.hypot(row['x'], row['y'])
+                    dist.append(distXY)
+                pyperData.insert(3, 'dist', dist)
+
+                # detecting manu motion
+                state = 'motions'
+                topWindow.setStatus('Filtering manu motion...')
+                filter = IVTFilter()
+                filter.setParameter('min_velocity', 0.5)    #в пикселях
+                filter.setParameter('noise_level', 0.15)    #в пикселях
+                filter.setParameter('min_static', 20)       #в кадрах
+                filter.setParameter('min_motion', 5)        #в кадрах
+                filter.process(data=pyperData[['frame', 'dist']])
+                result = filter.getResultFiltered(state)
+                topWindow.setStatus('I-VT filter finished, with parameters: ' + filter.printParams() + '. ' + str(
+                    result.shape[0]) + ' ' + state + ' found.')
+
+                # generate .eaf
+                if not written:
+                    saveDir = dataExporter.createDir(prefix='annot')
+                    written = True
+
+                manuFile = settingsReader.getPathAttrById('manu', id)
+                manu = multiData.getChannelById('manu', id)
+                tier = id + '-mPyper' + state.capitalize()
+                manu.add_tier(tier_id=tier, ling='Default', part=id, ann=topWindow.PROJECT_NAME)
+                for index, row in result.iterrows():
+                    manu.add_annotation(id_tier=tier, start=int(row['min'] / topWindow.VIDEO_FRAMERATE *1000), end=int(row['max'] / topWindow.VIDEO_FRAMERATE *1000),
+                                        value=str(int(round(row['mean']))) + ' PPF')
+                eafFile = saveDir + '/' + os.path.splitext(manuFile)[0] + '-pyper.eaf'
+                topWindow.setStatus('Saving ELAN file ({0}).'.format(eafFile))
+                manu.to_file(eafFile)
+            else:
+                topWindow.setStatus('Unknown file format.')
+        else:
+            topWindow.setStatus('Manual annotation pair not specified! No ELAN file to add tier to.')
+
+    if written:
+        dataExporter.copyMeta()
+    else:
+        topWindow.setStatus('Nothing was saved. No manu data!')
+
+
+
 #TODO парование интервалов из greenpeople и ручной аннотации, затем ! поиск кластеров там, где много мелких кусков в GP
 #TODO type attribute must be case insensitive
 def qualityAssessment(topWindow, multiData, settingsReader:object,dataExporter:object) -> None:
+    """
+
+    :param topWindow:
+    :param multiData:
+    :param settingsReader:
+    :param dataExporter:
+    :return:
+    """
     pass
 

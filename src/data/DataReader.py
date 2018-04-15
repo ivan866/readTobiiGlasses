@@ -211,6 +211,8 @@ class DataReader():
             #TODO
             elif fileExt.lower() == '.json':
                 pass
+            else:
+                self.topWindow.setStatus('Unknown file format.')
 
 
 
@@ -230,6 +232,8 @@ class DataReader():
             if fileExt.lower() == '.textgrid':
                 #WARNING: encoding hard-coded
                 vocData = TextGrid(filePath,codec='utf-16-be')
+            else:
+                self.topWindow.setStatus('Unknown file format.')
 
             multiData.setNode('voc', fileElem.get('id'), vocData)
 
@@ -260,6 +264,8 @@ class DataReader():
                 manuData.rename(columns={col: re.sub('.*m.*gesture.*', 'mGesture', col, flags=re.IGNORECASE) for col in manuData.columns}, inplace=True)
                 # manuData.rename(columns={col: re.sub('.*lt.*phases.*','mLtPhases',col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
                 # manuData.rename(columns={col: re.sub('.*rt.*phases.*', 'mRtPhases', col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
+            else:
+                self.topWindow.setStatus('Unknown file format.')
 
             multiData.setNode('manu', fileElem.get('id'), manuData)
 
@@ -279,6 +285,8 @@ class DataReader():
             self.topWindow.setStatus('Reading ceph annotation (' + os.path.basename(filePath) + ')...')
             if fileExt.lower() == '.eaf':
                 cephData = Eaf(filePath)
+            else:
+                self.topWindow.setStatus('Unknown file format.')
 
             multiData.setNode('ceph', fileElem.get('id'), cephData)
 
@@ -308,5 +316,7 @@ class DataReader():
                 oculData = oculData.applymap(lambda x: re.sub('\t(.*)', '\\1', str(x)))
                 oculData = oculData.astype({'Gaze event duration': int})
                 oculData['Gaze event duration'] /= 1000
+            else:
+                self.topWindow.setStatus('Unknown file format.')
 
             multiData.setNode('ocul', fileElem.get('id'), oculData)

@@ -172,7 +172,7 @@ class SettingsReader:
         :param channel:
         :return: File XML element from settings, if such file exists on disk.
         """
-        if self.check():
+        if self.check(full=True):
             for elem in self.getTypes(type):
                 file=self.dataDir + '/' + elem.get('path')
                 if os.path.exists(file):
@@ -367,17 +367,25 @@ class SettingsReader:
             return dur.strftime('%M:%S.%f')
 
 
-    def check(self) -> bool:
+    def check(self,full:bool=False) -> bool:
         """Returns True if settings are already selected, False otherwise.
-        
+
+        :param full: if to check settings actually read and parsed already.
         :return: A bool representing presence of settings file path.
         """
         self.topWindow.logger.debug('check settings')
-        if self.settingsFile:
-            return True
+        if not full:
+            if self.settingsFile:
+                return True
+            else:
+                self.topWindow.setStatus('Select settings first!')
+                return False
         else:
-            self.topWindow.setStatus('Select settings first!')
-            return False
+            if self.settings:
+                return True
+            else:
+                self.topWindow.setStatus('Read and parse settings first!')
+                return False
 
 
     def save(self,saveDir:str)->None:
