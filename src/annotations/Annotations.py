@@ -164,7 +164,17 @@ def callPyper(topWindow, multiData, settingsReader:object,dataExporter:object) -
     :param dataExporter:
     :return:
     """
-    pass
+    cmd=['g:\ProgramData\Anaconda3Win7\python.exe tracking_cli.py',
+         'g:\projects\multidiscourse\data\pears22\Pears22N-vi-fragment.avi',
+         '-b "00:00"',
+         '-f "00:00"',
+         '-t "99:00"',
+         '--threshold 128',
+         '--min-area 100',
+         '--max-area 2000',
+         '--teleportation-threshold 1000',
+         '--prefix "manu_output"']
+    output = subprocess.run(cmd, shell=True)
 
 
 def pyperToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) -> None:
@@ -198,6 +208,7 @@ def pyperToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) 
                 pyperData.insert(3, 'dist', dist)
 
                 # detecting manu motion
+                #FIXME сделать refactor этого блока, вынести их все в одну функцию
                 state = 'motions'
                 topWindow.setStatus('Filtering manu motion...')
                 filter = IVTFilter()
@@ -220,8 +231,9 @@ def pyperToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) 
                 tier = id + '-mPyper' + state.capitalize()
                 manu.add_tier(tier_id=tier, ling='Default', part=id, ann=topWindow.PROJECT_NAME)
                 for index, row in result.iterrows():
+                    #FIXME взять framerate из самого видеофайла при помощи opencv или ffmpeg, например
                     manu.add_annotation(id_tier=tier, start=int(row['min'] / topWindow.VIDEO_FRAMERATE *1000), end=int(row['max'] / topWindow.VIDEO_FRAMERATE *1000),
-                                        value=str(int(round(row['mean']))) + ' PPF')
+                                        value=str(int(round(row['mean']))) + ' ppf')
                 eafFile = saveDir + '/' + os.path.splitext(manuFile)[0] + '-pyper.eaf'
                 topWindow.setStatus('Saving ELAN file ({0}).'.format(eafFile))
                 manu.to_file(eafFile)

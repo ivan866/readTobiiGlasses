@@ -64,6 +64,7 @@ class SettingsReader:
         """
         return self.dataDir
 
+
     def select(self, file:str=None) -> None:
         """Selects file with settings, either via dialogue or literally by path string.
         
@@ -83,14 +84,20 @@ class SettingsReader:
         else:
             self.topWindow.setStatus('WARNING: Nothing selected. Please retry.')
 
-    def selectBatch(self,pivotData:object,stats:object)-> None:
+
+    #TODO the function needed for the batch must also be selected through the menu
+    def selectBatch(self, pivotData:object, stats:object, file:str=None)-> None:
         """Parses .bat file and runs every script with every settings file in it. Then combines reports together for summary statistic analysis.
-        
+
+        :param file: path to .bat file
         :param pivotData: PivotData object to hold tables into.
         :param stats: Stats object to write files with.
         :return: 
         """
-        batchFile = filedialog.askopenfilename(filetypes = (("Batch command file","*.bat"),("all files","*.*")))
+        if not file:
+            batchFile = filedialog.askopenfilename(filetypes = (("Batch command file","*.bat"),("all files","*.*")))
+        else:
+            batchFile=file
 
         if batchFile:
             #обнуляем на случай повторного запуска в той же сессии
@@ -99,6 +106,7 @@ class SettingsReader:
             self.batchSettingsTree=None
             self.readBatch(pivotData=pivotData,stats=stats)
 
+
     def read(self,serial:bool=False)->None:
         """Actually reads and parses xml file contents.
         
@@ -106,7 +114,7 @@ class SettingsReader:
         :return: 
         """
         #TODO check XML validity
-        self.topWindow.logger.debug('reading settings...')
+        #self.topWindow.logger.debug('reading settings...')
         self.settingsTree = ET.parse(self.settingsFile)
         self.settings = self.settingsTree.getroot()
         if serial:
@@ -125,6 +133,8 @@ class SettingsReader:
             self.topWindow.setStatus('WARNING: No intervals specified. Please explicitly specify at least 1 named interval in settings file.')
 
 
+    #FIXME not only stats can be done in batch mode
+    #processed stats are saved to common 'batch' dir, from where then all tables are read again and pivoted
     def readBatch(self,pivotData:object,stats:object)->None:
         """Reads and executes runs from batch sequentially.
         
@@ -143,7 +153,7 @@ class SettingsReader:
                 self.batchNum=self.batchNum+1
                 savePath = self.batchDir + '/' + str(self.batchNum)
                 self.topWindow.setStatus('--Line ' + str(self.batchNum)+'--')
-                self.topWindow.batchProcess(args, serial=True, savePath=savePath)
+                self.topWindow.CLIProcess(args, serial=True, savePath=savePath, functions=['desc_stats'])
                 line = f.readline()
 
         pivotData.pivot(settingsReader=self,stats=stats)
@@ -157,7 +167,7 @@ class SettingsReader:
 
     def open(self) -> None:
         """Asynchronously opens settings in external text editor."""
-        #TODO check OS type
+        #TODO check OS type with platform.platform / platform.system
         self.topWindow.setStatus('Calling external editor...')
         subprocess.run('npp/notepad++.exe '+self.settingsFile)
         self.topWindow.setStatus('Returned from external editor.')

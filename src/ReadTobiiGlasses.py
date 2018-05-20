@@ -53,8 +53,8 @@ class ReadTobiiGlasses():
         :param gui: Whether to start gui.
         """
         #TODO command line procedure for gyro2eaf with custom arguments
+        #TODO add environment setup script (setup.py), как сделать python package с манифестом пакета
         #TODO !tests and raises error coding style
-        #TODO add environment setup script, как сделать python package с манифестом пакета
 		#TODO add bash script for batch
         #TODO add cli equivalent commands copied to report with actual arguments
         #TODO sync package API
@@ -107,6 +107,7 @@ class ReadTobiiGlasses():
 
         self.logger.debug('populating menus...')
         #populate menu
+        #FIXME all commands refactor to Command pattern
         settingsMenu = Menu(self.rootMenu, tearoff=0)
         settingsMenu.add_command(label="Select...", command=self.settingsReader.select)
         settingsMenu.add_command(label="Modify in external editor", command=self.settingsReader.open)
@@ -250,6 +251,7 @@ class ReadTobiiGlasses():
         reportFile.close()
 
 
+    #TODO add JAI camera SDK website
     def gotoWeb(self,page:str)->None:
         """Opens wiki page on GitHub.
         
@@ -272,55 +274,59 @@ class ReadTobiiGlasses():
             self.setStatus('Unknown URL.')
 
 
-    def batchRead(self,args:object,serial:bool=False)->None:
-        """
 
-        :param args:
-        :param serial:
-        :return:
-        """
-        self.logger.debug(self.settingsReader)
-        self.settingsReader.select(args.settings)
-        self.dataReader.read(self.settingsReader, self.multiData, serial=serial)
 
-    def batchProcess(self,args:object,serial:bool=False,savePath:str='')->None:
-        """Calls all the methods to make statistical calculations.
-        
+    def CLIProcess(self, args:object, serial:bool=False, savePath:str='', functions:list=[])->None:
+        """Calls all the functions specified in command line arguments.
+
         :param args: Command line arguments object.
         :param serial: If this is a serial batch for combining reports to pivot table.
         :param savePath: Directory tree to save batch into.
-        :return: 
+        :param functions: list of functions to perform with specified settings or batch
+        :return:
         """
-        self.batchRead(args=args,serial=serial)
-        self.stats.descriptive(self.multiData,dataExporter=self.dataExporter,serial=serial,savePath=savePath)
+        if 'desc_stats' in functions:
+            self.stats.descriptive(self.multiData,dataExporter=self.dataExporter,serial=serial,savePath=savePath)
+        if 'export_gyro' in functions:
+            #self.dataExporter.exportGyro(self.multiData)
+            Annotations.imuToEaf(self, self.multiData, settingsReader=self.settingsReader, dataExporter=self.dataExporter)
+        if 'detect_manu' in functions:
+            #FIXME engine select
+            Annotations.callPyper(self, self.multiData, settingsReader=self.settingsReader, dataExporter=self.dataExporter)
+        #FIXME if launched from CLI or menu - exit or not
         if not serial:
             sys.exit()
 
-    #FIXME не доделано?
-    def batchGyroscope(self,args:object)->None:
-        """
-
-        :param args:
-        :return:
-        """
-        self.batchRead(args=args)
-        self.dataExporter.exportGyro(self.multiData)
-        sys.exit()
 
 
 
+#TODO change args in wiki on github
+#TODO all specified functions must work for batch file also
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--settings', help='Path to settings XML file')
-    parser.add_argument('-g', '--gyroscope', help='Export gyroscope to ELAN')
+    #TODO if manu engine specified, args should be present
+    parser = argparse.ArgumentParser(description='Launch ReadTobiiGlasses from the command line.')
+    settingsFileGroup = parser.add_mutually_exclusive_group()
+    settingsFileGroup.add_argument('-s', '--settings-file', type=str, help='Path to settings XML file.')
+    settingsFileGroup.add_argument('-b', '--batch-file', type=str, help='Path to batch file - to process several settings paths, executing the next specified options on each.')
+    parser.add_argument('--desc-stats', action='append_const', dest='functions', const='desc_stats', help='Calculate descriptive statistics and save detailed report.')
+    parser.add_argument('--export-gyro', action='append_const', dest='functions', const='export_gyro', help='Export gyroscope to ELAN.')
+    manuGroup = parser.add_argument_group('manu', 'Parameters which apply to manu annotations.')
+    manuGroup.add_argument('--detect-manu', action='append_const', dest='functions', const='detect_manu', help='Perform manu motion detection.')
+    manuGroup.add_argument('--manu-engine', type='str', choices=('green_people', 'pyper', 'tracktor', 'winanalyze', 'ssd'), default='pyper', help='Script or tool to use for manu motion detection.')
+    manuGroup.add_argument('--manu-args', nargs='+', default=[128,100,2000,1000,'manu_output'], help='Parameters for the manu CLI tool, e.g. threshold, etc.')
     args = parser.parse_args()
 
-    if args.settings:
+    #with or without command line parameters
+    #TODO refactor the serial/not serial choose logic, comply to information hiding principle
+    if args.settings_file or args.batch_file:
         rtg = ReadTobiiGlasses(gui=False)
-        if args.gyroscope:
-            rtg.batchGyroscope(args)
-        else:
-            rtg.batchProcess(args,serial=False)
+        if args.settings_file:
+            serial = False
+            self.settingsReader.select(args.settings_file)
+            self.dataReader.read(self.settingsReader, self.multiData, serial=serial)
+            rtg.CLIProcess(args=args, serial=serial, functions=args.functions)
+        elif args.batch_file:
+            self.settingsReader.selectBatch(pivotData=self.pivotData, stats=self.stats, file=args.batch_file)
     else:
         ReadTobiiGlasses()
 

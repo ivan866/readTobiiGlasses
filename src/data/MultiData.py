@@ -79,7 +79,7 @@ class MultiData():
         self.__init__(self.topWindow)
 
     def setNode(self, channel: str, id: str, data: object) -> None:
-        """Sets choosen node in hierarchy of multiData to given data object.
+        """Sets chosen node in hierarchy of multiData to given data object.
         
         :param channel: string of type from settings.
         :param id: string of channel id from settings.

@@ -36,6 +36,7 @@ class DataReader():
             return lineNum
 
 
+    #multiDatas are not combined in batch mode, instead, they are processed sequentially - for memory efficiency, and then only (csv) tables are pivoted
     def read(self, settingsReader, multiData,serial:bool=False) -> None:
         """Actual data parsing code.
         

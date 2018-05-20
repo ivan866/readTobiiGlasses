@@ -1,2 +1,2 @@
-g:\Users\Galina\Anaconda3\python.exe ReadTobiiGlasses.py --settings=G:\projects\pears\data\pears04\readTobiiGlassesSettings.xml
-g:\Users\Galina\Anaconda3\python.exe ReadTobiiGlasses.py --settings=G:\projects\pears\data\pears23\readTobiiGlassesSettings.xml
+g:\Users\ivan866\Anaconda3\python.exe ReadTobiiGlasses.py --settings-file=G:\projects\pears\data\pears04\readTobiiGlassesSettings.xml
+g:\Users\ivan866\Anaconda3\python.exe ReadTobiiGlasses.py --settings-file=G:\projects\pears\data\pears23\readTobiiGlassesSettings.xml
