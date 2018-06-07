@@ -1,5 +1,7 @@
 import os
+import re
 import math
+import subprocess
 
 import numpy as np
 
@@ -8,6 +10,7 @@ from scipy.integrate import cumtrapz
 from scipy.signal import savgol_filter
 
 import pandas as pd
+from pandas import DataFrame
 
 
 from data.TobiiMEMS import TobiiMEMS
@@ -16,7 +19,73 @@ from data.IVTFilter import IVTFilter
 import skinematics
 import angles
 
+import pympi
 from pympi.Elan import Eaf
+
+
+from SettingsReader import SettingsReader
+
+
+
+
+
+#TODO ? can refactor eaf objects to dedicated annotation class through inheritance
+#with methods for data manipulation and retrieval, including saving and formatting
+
+
+
+#TODO ?- launch ExportTabdelimeted.java from elan*.jar and export to .txt, then read
+def parseAnnotationToDataframe(topWindow, annotData:object, settingsReader:SettingsReader)-> DataFrame:
+    """Parses all the tiers and makes a single dataframe from them.
+
+    :param eafData: pympi.Elan object
+    :return: dataframe with columns corresponding to tiers
+    """
+    if type(annotData) == pympi.Elan.Eaf:
+        tierNames=annotData.get_tier_names()
+    elif type(annotData) == pympi.Praat.TextGrid:
+        tierNames=[t.name for t in annotData.get_tiers()]
+
+    result=DataFrame(columns=['Begin_Time'])
+    ids = settingsReader.unique(field='id')
+    re_start='^[{0}][-|_]'.format('|'.join(ids))
+    re_end='[-|_][{0}]$'.format('|'.join(ids))
+    for tierName in tierNames:
+        if type(annotData) == pympi.Elan.Eaf:
+            annot=annotData.get_annotation_data_for_tier(tierName)
+        elif type(annotData) == pympi.Praat.TextGrid:
+            annot=annotData.get_tier(tierName).intervals
+        else:
+            topWindow.setStatus('ERROR: Unrecognized annotation type.')
+            annot=None
+
+        #удаляем из названия слоя букву-указатель на id коммуниканта (N,R,C,L,etc.), чтобы в сводных таблицах все соответственные названия были идентичны
+        #она бывает в начале и в конце, отделена _ или -
+        tierName=re.sub(re_start, '', tierName, flags=re.IGNORECASE)
+        tierName=re.sub(re_end, '', tierName, flags=re.IGNORECASE)
+
+        #при наличии родительского слоя возвращается более 3 столбцов
+        tierDf=DataFrame(data=annot)
+        tierDf=tierDf.iloc[:,0:3]
+        tierDf.rename(columns={0:'Begin_Time',1:'Duration',2:tierName},inplace=True)
+        #вырезаем табы, оставленные при конвертации из .xls с помощью yey.exe
+        tierDf = tierDf.applymap(lambda x: re.sub('\t(.*)', '\\1', str(x)))
+        #бывают пустые слои
+        if len(tierDf):
+            tierDf = tierDf.astype({'Begin_Time':float, 'Duration':float},copy=False)
+            tierDf['Duration']=tierDf['Duration']-tierDf['Begin_Time']
+            if type(annotData) == pympi.Elan.Eaf:
+                tierDf['Begin_Time'] /= 1000
+                tierDf['Duration'] /= 1000
+
+            result=result.merge(tierDf, how='outer', sort=True, copy=False)
+
+    #не совсем корректно удалять nan, но для удобства поиска допустимо, пока все столбцы консистентны
+    #но тогда пустые будут влиять на подсчет средних (!) в статистике
+    #FIXME скорее есть смысл заменять пустые ячейки на NaN
+    #result.replace(to_replace=np.nan,value='',inplace=True)
+    return result
+
 
 
 
@@ -102,6 +171,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
 
 
             # detecting head motion
+            #TODO можно refactor в отдельные функции
             state = 'motions'
             topWindow.setStatus('Filtering ceph motion...')
             topWindow.setStatus('Rotation component...')
@@ -126,6 +196,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             topWindow.setStatus('I-VT filter finished, with parameters: ' + filter2.printParams() + '. ' + str(result2.shape[0]) + ' ' + state + ' found.')
 
             # generate .eaf
+            #TODO можно сделать refactor в универсальный метод writeEaf
             if not written:
                 saveDir = dataExporter.createDir(prefix='annot')
                 written = True
@@ -146,35 +217,53 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             topWindow.setStatus('Saving ELAN file ({0}).'.format(eafFile))
             ceph.to_file(eafFile)
         else:
-            topWindow.setStatus('Cephalic annotation pair not specified! No ELAN file to add tier to.')
+            topWindow.setStatus('Cephalic annotation pair not specified! No ELAN file to add tier to.',color='error')
 
     if written:
         dataExporter.copyMeta()
     else:
-        topWindow.setStatus('Nothing was saved. No gyroscope data!')
+        topWindow.setStatus('Nothing was saved. No gyroscope data!',color='error')
 
 
 
-def callPyper(topWindow, multiData, settingsReader:object,dataExporter:object) -> None:
+def callPyper(topWindow, multiData, settingsReader:object,dataExporter:object, args:list) -> None:
     """
 
     :param topWindow:
     :param multiData:
     :param settingsReader:
     :param dataExporter:
+    :param args: list of constants for detection
     :return:
     """
-    cmd=['g:\ProgramData\Anaconda3Win7\python.exe tracking_cli.py',
-         'g:\projects\multidiscourse\data\pears22\Pears22N-vi-fragment.avi',
-         '-b "00:00"',
-         '-f "00:00"',
-         '-t "99:00"',
-         '--threshold 128',
-         '--min-area 100',
-         '--max-area 2000',
-         '--teleportation-threshold 1000',
-         '--prefix "manu_output"']
+    #performing a dry run to bypass Pyper's question about overwriting the dir
+    topWindow.setStatus('WARNING: this operation can take several hours for each record processed, depending on your machine speed.')
+    saveDir=dataExporter.createDir(prefix=args[4],dryRun=True)
+    cmd=['g:/ProgramData/Anaconda3Win7/python.exe',
+         'g:/projects/multidiscourse/scripts/motionTracking/Pyper/Pyper-python3/src/tracking_cli.py',
+         settingsReader.getPathAttrById('vi','N',absolute=True),
+         #check different -b values vs. quality
+         '-b','00:00',
+         '-f','00:00',
+         '-t','99:00',
+         '--threshold',str(args[0]),
+         '--min-area',str(args[1]),
+         '--max-area',str(args[2]),
+         '--teleportation-threshold',str(args[3]),
+         '--plot',
+         '--save-graphics',
+         '--prefix',os.path.basename(saveDir)]
     output = subprocess.run(cmd, shell=True)
+
+    topWindow.setStatus('Motion detection cycle finished. Check .eaf file.',color='success')
+    dataExporter.copyMeta()
+
+    #TODO all files of type
+    #try AviSynth downscaled source. check quality difference
+    #pyper installation
+    #console output
+    #compare fast and no-fast in .eaf
+    #assessment
 
 
 def pyperToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) -> None:
@@ -234,18 +323,18 @@ def pyperToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) 
                     #FIXME взять framerate из самого видеофайла при помощи opencv или ffmpeg, например
                     manu.add_annotation(id_tier=tier, start=int(row['min'] / topWindow.VIDEO_FRAMERATE *1000), end=int(row['max'] / topWindow.VIDEO_FRAMERATE *1000),
                                         value=str(int(round(row['mean']))) + ' ppf')
-                eafFile = saveDir + '/' + os.path.splitext(manuFile)[0] + '-pyper.eaf'
+                eafFile = saveDir + '/' + os.path.splitext(manuFile)[0] + '-pyper_converted.eaf'
                 topWindow.setStatus('Saving ELAN file ({0}).'.format(eafFile))
                 manu.to_file(eafFile)
             else:
                 topWindow.setStatus('Unknown file format.')
         else:
-            topWindow.setStatus('Manual annotation pair not specified! No ELAN file to add tier to.')
+            topWindow.setStatus('Manual annotation pair not specified! No ELAN file to add tier to.',color='error')
 
     if written:
         dataExporter.copyMeta()
     else:
-        topWindow.setStatus('Nothing was saved. No manu data!')
+        topWindow.setStatus('Nothing was saved. No manu data!',color='error')
 
 
 

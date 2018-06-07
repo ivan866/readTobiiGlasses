@@ -4,6 +4,13 @@ from SettingsReader import SettingsReader
 
 
 
+
+
+#TODO проверить возможность чертить графики через +gnuplot или !plplot
+
+
+
+
 class AbstractViz():
     """Abstract visualization class with some useful data management methods."""
 

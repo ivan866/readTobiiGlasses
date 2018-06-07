@@ -20,16 +20,18 @@ class DataExporter():
     def __init__(self,topWindow):
         self.topWindow = topWindow
         self.settingsReader=SettingsReader.getReader()
+        self.saveDir=''
         self.colsUnperceptable=['Timedelta','Record tag','Id']
 
 
 
-    def createDir(self,prefix:str='output',serial:bool=False,savePath:str='')->str:
+    def createDir(self,prefix:str='output',serial:bool=False,savePath:str='',dryRun:bool=False)->str:
         """Creates timestamped directory to save data into.
 
         :param prefix: directory name prefix.
         :param serial:
         :param savePath:
+        :param dryRun: whether to actually create the dir or just generate the path
         :return: Directory path str.
         """
         now = datetime.now().strftime('%Y-%m-%d %H_%M_%S')
@@ -41,8 +43,10 @@ class DataExporter():
         if serial:
             self.saveDir = savePath
         else:
-            self.saveDir = self.settingsReader.dataDir + '/'+prefix+'_' + now
-        os.makedirs(self.saveDir)
+            self.saveDir = self.settingsReader.dataDir + '/'+str(prefix)+'_' + now
+
+        if not dryRun:
+            os.makedirs(self.saveDir)
         return self.saveDir
 
     def copyMeta(self,saveDir:str='')->None:
@@ -90,7 +94,7 @@ class DataExporter():
                         multiData.getChannelAndTag('fixations', id).drop(columns=self.colsUnperceptable).to_excel(saveDir + '/' + fixFile, index=False)
                         multiData.getChannelAndTag('saccades', id).drop(columns=self.colsUnperceptable).to_excel(saveDir + '/' + sacFile, index=False)
             if written:
-                self.topWindow.setStatus('Fixations and saccades saved to files. Intervals tagged.')
+                self.topWindow.setStatus('Fixations and saccades saved to files. Intervals tagged.',color='success')
                 self.copyMeta()
             else:
                 self.topWindow.setStatus('There is no data to write.')
@@ -122,7 +126,7 @@ class DataExporter():
                     accel.drop(columns=self.colsUnperceptable).to_csv(saveDir + '/' + accelFile, sep='\t', index=False)
 
             if written > 0:
-                self.topWindow.setStatus('Available sensor data saved to files. Note that samples before zeroTime were removed and intervals tagged.')
+                self.topWindow.setStatus('Available sensor data saved to files. Note that samples before zeroTime were removed and intervals tagged.',color='success')
                 self.copyMeta()
             else:
                 self.topWindow.setStatus('There is no sensor data to write.')
@@ -149,5 +153,5 @@ class DataExporter():
             conn=sqlalchemy.connect(dbFile)
             multiData.getChannelAndTag('ocul','N').to_sql('ocul', conn, flavor='mysql')
 
-            self.topWindow.setStatus('Database ready. Intervals trimmed and tagged.')
+            self.topWindow.setStatus('Database ready. Intervals trimmed and tagged.',color='success')
             self.copyMeta()

@@ -30,6 +30,8 @@ class Stats():
         self.settingsReader=SettingsReader.getReader()
 
 
+
+
     def groupbyListAndDescribe(self,data:object,groupby:object,on:str)->DataFrame:
         """Slices data on groupby, aggregates on column and adds some descriptive columns.
 
@@ -38,20 +40,23 @@ class Stats():
         :param on: Column to aggregate on.
         :return: data slice.
         """
-        #TODO change describe to agg(count,sum,etc.)
         self.topWindow.logger.debug('group by list and describe')
         #data.fillna('<NA>',inplace=True)
         if type(groupby) is str:
             groupby=[groupby]
         if len(groupby):
             #TODO добавить визуализации в виде мелких гистограмм для квартилей в этой статистике
-            sliced = data.groupby(groupby, sort=False)[on].describe()
+            grouped=data.groupby(groupby, sort=False)[on]
+            #describe gets exception if len(grouped.indices)==1
+            agg1=grouped.agg(['count','sum','mean','std','min'])
+            agg2=grouped.agg('quantile',q=[0.25,0.5,0.75])
+            #agg2=grouped.agg('quantile',q=[0.2,0.4,0.6,0.8])
+            agg3=grouped.agg(['max'])
+            sliced=pandas.concat([agg1,agg2.unstack(),agg3],axis=1)
             slicedCountRat = sliced['count'] / sliced['count'].sum()
-            slicedSum = data.groupby(groupby, sort=False)[on].sum()
-            slicedSumRat = slicedSum / slicedSum.sum()
+            slicedSumRat = sliced['sum'] / sliced['sum'].sum()
             sliced.insert(1, 'count ratio', value=slicedCountRat)
-            sliced.insert(2, 'total', value=slicedSum)
-            sliced.insert(3, 'total ratio', value=slicedSumRat)
+            sliced.insert(3, 'sum ratio', value=slicedSumRat)
             # считаем ratio от длительности интервала
             if ('Interval' in str(groupby)) and (len(groupby) == 1):
                 recordDur = self.settingsReader.totalDuration()
@@ -61,26 +66,29 @@ class Stats():
                     durs.append(self.settingsReader.getDurationById(interval))
                 durs=Series(durs)/numpy.timedelta64(1,'s')
                 durs.index = sliced.index
-                slicedTotalRatByDur = sliced['total'] / durs
+                slicedTotalRatByDur = sliced['sum'] / durs
                 sliced.insert(0, 'duration', value=durs)
                 sliced.insert(1, 'duration ratio', value=durs/recordDur.total_seconds())
-                sliced.insert(6, 'total ratio by duration', value=slicedTotalRatByDur)
+                sliced.insert(6, 'sum ratio by duration', value=slicedTotalRatByDur)
             #считаем ratio по интервалам
             elif ('Interval' in str(groupby)) and (len(groupby)>1):
                 ints=[int for int, *level in list(sliced.index)]
                 slicedCountRatByInt=sliced['count'] / list(sliced['count'].groupby('Interval').sum()[ints])
-                slicedSumRatByInt = slicedSum / list(slicedSum.groupby('Interval').sum()[ints])
+                slicedSumRatByInt = sliced['sum'] / list(sliced['sum'].groupby('Interval').sum()[ints])
                 sliced.insert(2, 'count ratio by interval', value=slicedCountRatByInt)
-                sliced.insert(5, 'total ratio by interval', value=slicedSumRatByInt)
+                sliced.insert(5, 'sum ratio by interval', value=slicedSumRatByInt)
         else:
-            sliced = data[on].describe()
-            slicedSum = data[on].sum()
+            onned=data[on]
+            agg1 = onned.agg(['count', 'sum', 'mean', 'std', 'min'])
+            agg2 = onned.agg('quantile', q=[0.25, 0.5, 0.75])
+            agg3 = onned.agg(['max'])
+            sliced = pandas.concat([agg1, agg2, agg3])
             sliced=DataFrame(sliced).transpose()
             recordDur=self.settingsReader.totalDuration()
             sliced.insert(0, 'duration', value=recordDur.total_seconds())
-            sliced.insert(2, 'total', value=slicedSum)
 
         return sliced
+
 
 
     def save(self,file:str,data:list,sheets:list=[],serial:bool=False) -> None:
@@ -122,6 +130,7 @@ class Stats():
         if len(sheets) and len(data)!=len(sheets):
             raise ValueError
 
+        #TODO can add pandas Styler for tables
         writer=pandas.ExcelWriter(file)
         dfNum=0
         startrow=0
@@ -142,8 +151,8 @@ class Stats():
 
 
 
-    #TODO починить функцию с новыми настройками
-    def descriptive(self,multiData,dataExporter:object,serial:bool=False,savePath:str='') -> None:
+
+    def descriptive(self, multiData, dataExporter:object, serial:bool=False, savePath:str='') -> None:
         """Basic data summary.
 
         Data description, length, number of channels, etc. Means, medians and distributions, grouped by channels and overall.
@@ -156,7 +165,7 @@ class Stats():
         """
         self.topWindow.logger.debug('descriptive stats')
         self.topWindow.setStatus('Gathering statistics... please wait.')
-        saveDir=dataExporter.createDir(prefix='stats',serial=serial,savePath=savePath)
+        saveDir=dataExporter.createDir(prefix='stats', serial=serial, savePath=savePath)
         self.topWindow.logger.debug('iterating through data channels...')
 
 
@@ -164,15 +173,21 @@ class Stats():
         if self.settingsReader.settings.find("interval[@id='']") is not None:
             self.topWindow.setStatus('WARNING: Unnamed intervals skipped!')
 
-        for channel in multiData.multiData['fixations']:
-            fData = multiData.getChannelAndTag('fixations', channel)
+
+
+        #TODO saccade velocity, saccade length stats + binning, fixation dispersion
+        messageShown=False
+        for (channel, id) in multiData.genChannelIds(channel='fixations'):
+            #TODO need refactor copies of this block
+            if not messageShown:
+                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                messageShown=True
+            fData = multiData.getChannelAndTag(channel, id)
             #allData=multiData.getDataFromAll(chData,startFrom)
+            sData = multiData.getChannelAndTag('saccades', id)
+            enfData = multiData.getChannelAndTag('eyesNotFounds', id)
 
-            sData = multiData.getChannelAndTag('saccades', channel)
-
-            enfData = multiData.getChannelAndTag('eyesNotFounds', channel)
-
-            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('gaze',channel).get('path'))[0]+'_descriptive.xls'
+            file=saveDir + '/' + self.settingsReader.getPathAttrById(channel, id) + '_descriptive.xls'
             self.save(file,[self.groupbyListAndDescribe(fData, [], 'Gaze event duration'),
                             self.groupbyListAndDescribe(fData, 'Interval', 'Gaze event duration'),
                             self.groupbyListAndDescribe(sData, [], 'Gaze event duration'),
@@ -183,37 +198,119 @@ class Stats():
                       serial=serial)
 
 
-        #TODO все данные теперь берутся прямо из eaf
-        for channel in multiData.multiData['manu']:
-            data = multiData.getChannelAndTag('manu', channel)
+
+
+        #TODO word category binning stats
+        messageShown=False
+        for (channel, id) in multiData.genChannelIds(channel='voc'):
+            if not messageShown:
+                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                messageShown = True
+            data = multiData.getChannelAndTag(channel, id, format='dataframe')
+
+            file=saveDir + '/' + self.settingsReader.getPathAttrById(channel, id) + '_descriptive.xls'
+            self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
+                            self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'Words', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'Supra', 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'Words'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'Supra'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Words', 'Supra'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'Words', 'Supra'], 'Duration')],
+                      serial=serial)
+
+
+
+
+        #TODO select needed tier combinations from XML or CLI, also possible to edit the GUI lists, after checking the GUI mode with warning
+        #TODO FIXME на самом деле все поисковые запросы должны выполняться мелкими порциями через SQL-выражения, прописанные пачкой в .bat-файл или !!скрипт для MySQL
+        messageShown=False
+        for (channel, id) in multiData.genChannelIds(channel='manu'):
+            if not messageShown:
+                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                messageShown = True
+            data = multiData.getChannelAndTag(channel, id, format='dataframe')
             #TODO проверить можно ли отбросить продублированные значения если не была снята галочка Repeat values of annotations
-            data.dropna(subset=(['mGesture']), inplace=True)
+            #self.topWindow.setStatus('WARNING: only \'mGesture\' tier will be considered in current implementation.')
+            #data.dropna(subset=(['mGesture']), inplace=True)
 
-            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('manu',channel).get('path'))[0]+'_descriptive.xls'
-            self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration - ss.msec'),
-                            self.groupbyListAndDescribe(data, 'Interval', 'Duration - ss.msec')],
+            file=saveDir + '/' + self.settingsReader.getPathAttrById(channel, id) + '_descriptive.xls'
+            self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
+                            self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'mLtMtType', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'mRtMtType', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'mLtStType', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'mRtStType', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'mGeHandedness', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'mGeStructure', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'mGeTags', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'mGeFunction', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'mAdType', 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'mLtMtType'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'mRtMtType'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'mLtStType'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'mRtStType'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'mGeStructure'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'mGeTags'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'mGeFunction'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'mAdType'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness','mGeStructure','mGeTags','mGeFunction'], 'Duration')],
                       serial=serial)
 
 
-        for channel in multiData.multiData['ocul']:
-            data=multiData.getChannelAndTag('ocul',channel)
 
-            file=saveDir + '/' + os.path.splitext(self.settingsReader.getTypeById('ocul',channel).get('path'))[0]+'_descriptive.xls'
-            self.save(file,[self.groupbyListAndDescribe(data, [], 'Gaze event duration'),
-                            self.groupbyListAndDescribe(data, 'Interval', 'Gaze event duration'),
-                            self.groupbyListAndDescribe(data, 'Id', 'Gaze event duration'),
-                            self.groupbyListAndDescribe(data, data['Tier'].str.lower(), 'Gaze event duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'Id'], 'Gaze event duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', data['Tier'].str.lower()], 'Gaze event duration'),
-                            self.groupbyListAndDescribe(data, ['Id', data['Tier'].str.lower()], 'Gaze event duration'),
-                            self.groupbyListAndDescribe(data,['Interval', 'Id', data['Tier'].str.lower()],'Gaze event duration')],
+
+        #FIXME need ignore NaNs during groupby, and blank fields must be nans too
+        messageShown=False
+        for (channel, id) in multiData.genChannelIds(channel='ceph'):
+            if not messageShown:
+                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                messageShown = True
+            data = multiData.getChannelAndTag(channel, id, format='dataframe')
+
+            file=saveDir + '/' + self.settingsReader.getPathAttrById(channel, id) + '_descriptive.xls'
+            self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
+                            self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'cMoveType', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'cTags', 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'cMoveType'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'cTags'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['cMoveType', 'cTags'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'cMoveType', 'cTags'], 'Duration')],
                       serial=serial)
 
 
 
 
-        self.topWindow.setStatus('Statistic reports saved.')
+        messageShown=False
+        for (channel, id) in multiData.genChannelIds(channel='ocul'):
+            if not messageShown:
+                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                messageShown = True
+            data=multiData.getChannelAndTag(channel, id, format='dataframe')
+            #FIXME временный 'костыль', пока не поправят в исходниках аннотаций
+            data.rename(columns={'E_Locus': 'E_Localization'}, inplace=True)
+
+            file=saveDir + '/' + self.settingsReader.getPathAttrById(channel, id) + '_descriptive.xls'
+            self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
+                            self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                            self.groupbyListAndDescribe(data, 'E_Interlocutor', 'Duration'),
+                            self.groupbyListAndDescribe(data, data['E_Localization'].str.lower(), 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', 'E_Interlocutor'], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['Interval', data['E_Localization'].str.lower()], 'Duration'),
+                            self.groupbyListAndDescribe(data, ['E_Interlocutor', data['E_Localization'].str.lower()], 'Duration'),
+                            self.groupbyListAndDescribe(data,['Interval', 'E_Interlocutor', data['E_Localization'].str.lower()],'Duration')],
+                      serial=serial)
+
+
+
+
+
+        self.topWindow.setStatus('Descriptive statistic reports saved.',color='success')
         dataExporter.copyMeta()
+
+
 
 
 

@@ -149,11 +149,12 @@ class SettingsReader:
             line = f.readline()
             while line:
                 args = argparse.Namespace()
-                args.settings = re.search('--settings=(.+)', line).groups()[0]
+                args.settings_file = re.search('--settings=(.+)', line).groups()[0]
+                args.functions=['desc_stats']
                 self.batchNum=self.batchNum+1
                 savePath = self.batchDir + '/' + str(self.batchNum)
                 self.topWindow.setStatus('--Line ' + str(self.batchNum)+'--')
-                self.topWindow.CLIProcess(args, serial=True, savePath=savePath, functions=['desc_stats'])
+                self.topWindow.CLIProcess(args, serial=True, savePath=savePath)
                 line = f.readline()
 
         pivotData.pivot(settingsReader=self,stats=stats)
@@ -182,10 +183,14 @@ class SettingsReader:
         :param channel:
         :return: File XML element from settings, if such file exists on disk.
         """
+        found=False
         if self.check(full=True):
             for elem in self.getTypes(type):
                 file=self.dataDir + '/' + elem.get('path')
                 if os.path.exists(file):
+                    if not found:
+                        self.topWindow.setStatus('Reading {0} data...'.format(type))
+                        found=True
                     #добавляем контрольную сумму в настройки
                     elem.set('md5', self.md5(file))
                     yield elem

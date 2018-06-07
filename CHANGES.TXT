@@ -8,6 +8,7 @@ What's new?
 - New feature: green_people.py output now exported to .eaf
 - New feature: annotation intervals are now subject to compare metrics
 - Line endings changed to CRLF in settings.xml.
+- Command line interface changed and extended.
 
 Bug fixes:
 

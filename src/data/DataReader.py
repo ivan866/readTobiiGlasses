@@ -8,6 +8,10 @@ import pandas as pd
 from pympi.Elan import Eaf
 from pympi.Praat import TextGrid
 
+from annotations import Annotations
+
+
+
 
 
 
@@ -59,7 +63,7 @@ class DataReader():
         self.readManu(settingsReader, multiData)
         self.readCeph(settingsReader, multiData)
         self.readOcul(settingsReader, multiData)
-        self.topWindow.setStatus('All valuable data read successfully.')
+        self.topWindow.setStatus('All valuable data read successfully.',color='success')
 
 
 
@@ -71,12 +75,12 @@ class DataReader():
         :param multiData: 
         :return:
         """
-        self.topWindow.setStatus('Reading gaze data...')
         for fileElem in settingsReader.genTypeFile('gaze'):
             filePath = settingsReader.getPathAttrById('gaze', fileElem.get('id'), absolute=True)
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading gaze data (' + os.path.basename(filePath) + ')...')
             if fileExt.lower()=='.tsv':
+                self.topWindow.setStatus('Parsing .tsv file.')
                 # узнаем какие столбцы присутствуют
                 headers = pd.read_table(filePath, nrows=1, encoding='UTF-16')
                 availColumns = [i for i in list(headers.columns) if re.match('Recording timestamp|Gaze point|Gaze 3D position|Gaze direction|Pupil diameter|Eye movement type|Gaze event duration|Fixation point|Gyro|Accelerometer',i)]
@@ -211,12 +215,14 @@ class DataReader():
                 multiData.setNode('gaze',fileElem.get('id'),gazeData)
             #TODO
             elif fileExt.lower() == '.json':
-                pass
+                self.topWindow.setStatus('WARNING: parsing .json files not implemented.')
             else:
                 self.topWindow.setStatus('Unknown file format.')
 
 
 
+
+    #TODO catch exceptions in case of bad format
     #TODO parse and read voc_scores file type
     def readVoc(self, settingsReader, multiData) -> None:
         """Reads voc annotation from TextGrid file.
@@ -225,24 +231,21 @@ class DataReader():
         :param multiData:
         :return:
         """
-        self.topWindow.setStatus('Reading voc annotations...')
         for fileElem in settingsReader.genTypeFile('voc'):
             filePath=settingsReader.getPathAttrById('voc',fileElem.get('id'),absolute=True)
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading voc annotation (' + os.path.basename(filePath) + ')...')
             if fileExt.lower() == '.textgrid':
+                self.topWindow.setStatus('Parsing .TextGrid file.')
                 #WARNING: encoding hard-coded
                 vocData = TextGrid(filePath,codec='utf-16-be')
             else:
-                self.topWindow.setStatus('Unknown file format.')
+                self.topWindow.setStatus('ERROR: Unknown file format.')
 
             multiData.setNode('voc', fileElem.get('id'), vocData)
 
 
 
-    #TODO add format-aware parser (eaf, txt) for manu and ceph annotations
-    #TODO setStatus какой формат обнаружен
-    #TODO add parsing to table form
     #TODO refactor all data read methods to callbacks with arguments of channel type
     def readManu(self, settingsReader, multiData) -> None:
         """Reads manu annotation from txt or eaf file.
@@ -251,14 +254,17 @@ class DataReader():
         :param multiData: 
         :return:
         """
-        self.topWindow.setStatus('Reading manu annotations...')
         for fileElem in settingsReader.genTypeFile('manu'):
             filePath=settingsReader.getPathAttrById('manu',fileElem.get('id'),absolute=True)
             fileExt=os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading manu annotation (' + os.path.basename(filePath) + ')...')
+            #TODO can refactor all such blocks to function calls after 'type' conditional
             if fileExt.lower()=='.eaf':
+                self.topWindow.setStatus('Parsing .eaf file.')
                 manuData = Eaf(filePath)
             elif fileExt.lower()=='.txt':
+                #FIXME need rename 'begin time' and 'duration' columns to be consistent with .eaf parsing
+                self.topWindow.setStatus('Parsing .txt file.')
                 skiprows = self.determineSkiprows(filePath, '"#')
                 manuData = pd.read_table(filePath, skiprows=skiprows)
                 # названия столбцов не всегда одинаковые в разных записях
@@ -266,7 +272,7 @@ class DataReader():
                 # manuData.rename(columns={col: re.sub('.*lt.*phases.*','mLtPhases',col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
                 # manuData.rename(columns={col: re.sub('.*rt.*phases.*', 'mRtPhases', col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
             else:
-                self.topWindow.setStatus('Unknown file format.')
+                self.topWindow.setStatus('ERROR: Unknown file format.')
 
             multiData.setNode('manu', fileElem.get('id'), manuData)
 
@@ -279,15 +285,15 @@ class DataReader():
         :param multiData:
         :return:
         """
-        self.topWindow.setStatus('Reading ceph annotations...')
         for fileElem in settingsReader.genTypeFile('ceph'):
             filePath=settingsReader.getPathAttrById('ceph',fileElem.get('id'),absolute=True)
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading ceph annotation (' + os.path.basename(filePath) + ')...')
             if fileExt.lower() == '.eaf':
+                self.topWindow.setStatus('Parsing .eaf file.')
                 cephData = Eaf(filePath)
             else:
-                self.topWindow.setStatus('Unknown file format.')
+                self.topWindow.setStatus('ERROR: Unknown file format.')
 
             multiData.setNode('ceph', fileElem.get('id'), cephData)
 
@@ -300,24 +306,26 @@ class DataReader():
         :param multiData: 
         :return:
         """
-        self.topWindow.setStatus('Reading ocul annotations...')
         for fileElem in settingsReader.genTypeFile('ocul'):
             filePath=settingsReader.getPathAttrById('ocul',fileElem.get('id'),absolute=True)
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading ocul annotation (' + os.path.basename(filePath) + ')...')
             if fileExt.lower() == '.eaf':
+                self.topWindow.setStatus('Parsing .eaf file.')
                 oculData = Eaf(filePath)
             elif fileExt.lower() == '.xls':
+                self.topWindow.setStatus('Parsing .xls file.')
                 oculData = pd.read_excel(filePath, header=None,
-                                         names=('Timecode',
-                                                'Gaze event duration',
-                                                'Id', 'Tier'),
+                                         #timecode should be the 1st column in current implementation
+                                         names=('Begin_Time',
+                                                'Duration',
+                                                'E_Interlocutor', 'E_Localization'),
                                          usecols='B:E')
                 # при считывании из excel в строках могут оставаться знаки \t
                 oculData = oculData.applymap(lambda x: re.sub('\t(.*)', '\\1', str(x)))
-                oculData = oculData.astype({'Gaze event duration': int})
-                oculData['Gaze event duration'] /= 1000
+                oculData = oculData.astype({'Duration': float},copy=False)
+                oculData['Duration'] /= 1000
             else:
-                self.topWindow.setStatus('Unknown file format.')
+                self.topWindow.setStatus('ERROR: Unknown file format.')
 
             multiData.setNode('ocul', fileElem.get('id'), oculData)

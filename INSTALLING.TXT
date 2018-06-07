@@ -1,6 +1,11 @@
 - Download the release .zip file from the repository, unpack.
 - Install Python 3.x, preferably the Anaconda distribution.
+either
+- run setup.py script
+python.exe setup.py install
+or
 - Locate the file requirements.txt in the root of unpacked repository and run
-python -m pip install -r requirements.txt
+python.exe -m pip install -r requirements.txt
+then
 - Run (it may be necessary to write full path to python.exe depending on whether it was added to your PATH during the installation process)
 python.exe ReadTobiiGlasses.py

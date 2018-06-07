@@ -52,6 +52,7 @@ class ReadTobiiGlasses():
         
         :param gui: Whether to start gui.
         """
+        #TODO switch to ?fltk GUI
         #TODO command line procedure for gyro2eaf with custom arguments
         #TODO add environment setup script (setup.py), как сделать python package с манифестом пакета
         #TODO !tests and raises error coding style
@@ -68,6 +69,7 @@ class ReadTobiiGlasses():
         self.PROJECT_NAME='Read Tobii Glasses'
         self.PROJECT_NAME_SHORT='RTG'
         self.VIDEO_FRAMERATE=100
+        self.PYPER_MANU_ARGS=[128,100,2000,1000,'manu_output']
         self.logger.debug('creating tk root..')
         self.root = Tk()
         self.root.geometry('640x400')
@@ -83,7 +85,8 @@ class ReadTobiiGlasses():
         self.status.pack(side=BOTTOM,fill=X)
 
         self.report=Text(self.root, bg='lightgray', relief=SUNKEN, wrap=CHAR)
-        self.report.insert('0.0',datetime.now().strftime('%Y-%m-%d') + '\n')
+        self.report.insert('1.0',datetime.now().strftime('%Y-%m-%d') + '\n')
+        self.report_line_num=1
         self.appendReport('ReadTobiiGlasses started.')
         self.report.pack(side=LEFT,anchor=NW,fill=BOTH)
 
@@ -129,9 +132,9 @@ class ReadTobiiGlasses():
 
         annotationMenu = Menu(self.rootMenu, tearoff=0)
         annotationMenu.add_command(label="Sanity check", command=lambda: self.setStatus('Not implemented.'))
-        annotationMenu.add_command(label="Gyroscope (ceph motion) to ELAN", command=lambda: Annotations.imuToEaf(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
-        annotationMenu.add_command(label="Hand tracking (manu motion) to ELAN (Pyper)", command=lambda: Annotations.callPyper(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
-        annotationMenu.add_command(label="Export Pyper CSV to EAF", command=lambda: Annotations.pyperToEaf(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
+        annotationMenu.add_command(label="Detect ceph motions (gyro)", command=lambda: Annotations.imuToEaf(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
+        annotationMenu.add_command(label="Detect manu motions (pyper)", command=lambda: Annotations.callPyper(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter, args=self.PYPER_MANU_ARGS))
+        annotationMenu.add_command(label="Convert pyper CSV to EAF", command=lambda: Annotations.pyperToEaf(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
         annotationMenu.add_command(label="Motion detection quality assessment", command=lambda: Annotations.qualityAssessment(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
         annotationMenu.add_command(label="Voc/ocul transcript", command=lambda: self.setStatus('Not implemented.'))
         self.rootMenu.add_cascade(label="Annotation", menu=annotationMenu)
@@ -213,28 +216,43 @@ class ReadTobiiGlasses():
 
 
 
-    def appendReport(self,text:str) -> None:
+    def appendReport(self,text:str,color:str='#000000') -> None:
         """Appends text to report text widget.
         
         :param text: Text to append.
+        :param color: text color, useful for warnings and successful operations.
         :return: 
         """
-        #TODO add colorize text
+        self.report_line_num=self.report_line_num+1
+        startIndex='{0}.9'.format(self.report_line_num)
+        endIndex='{0}.end'.format(self.report_line_num)
+        if 'error' in text.lower() or 'unknown' in text.lower() or 'fail' in text.lower() or 'there is no' in text.lower() or color=='error':
+            color='#FF0000'
+        elif 'warn' in text.lower() or color=='warning':
+            color='#FF4422'
+        elif 'success' in text.lower() or color=='success':
+            color='#006600'
+        #TODO ? can add font style for different messages
+        #TODO add binding to text to open stat reports
+
         now = datetime.now().strftime('%H:%M:%S')
         self.report.config(state=NORMAL)
         self.report.insert(END,now+' '+text+'\n')
+        self.report.tag_add('line_'+str(self.report_line_num),startIndex,endIndex)
+        self.report.tag_config('line_'+str(self.report_line_num),foreground=color)
         self.report.see(END)
         self.report.config(state=DISABLED)
 
-    def setStatus(self,text:str) -> None:
+    def setStatus(self,text:str,color:str='#000000') -> None:
         """Set status bar text from other code.
         
         :param text: New content for status bar.
+        :param color: text color (passed to report field).
         :return: 
         """
         #TODO progress vertical bar rotating in text field
         self.logger.info(text)
-        self.appendReport(text)
+        self.appendReport(text,color=color)
         self.status.config(text=text)
         self.root.update_idletasks()
 
@@ -276,7 +294,7 @@ class ReadTobiiGlasses():
 
 
 
-    def CLIProcess(self, args:object, serial:bool=False, savePath:str='', functions:list=[])->None:
+    def CLIProcess(self, args:object, serial:bool=False, savePath:str='')->None:
         """Calls all the functions specified in command line arguments.
 
         :param args: Command line arguments object.
@@ -285,15 +303,21 @@ class ReadTobiiGlasses():
         :param functions: list of functions to perform with specified settings or batch
         :return:
         """
-        if 'desc_stats' in functions:
+        if 'desc_stats' in args.functions:
             self.stats.descriptive(self.multiData,dataExporter=self.dataExporter,serial=serial,savePath=savePath)
-        if 'export_gyro' in functions:
-            #self.dataExporter.exportGyro(self.multiData)
-            Annotations.imuToEaf(self, self.multiData, settingsReader=self.settingsReader, dataExporter=self.dataExporter)
-        if 'detect_manu' in functions:
-            #FIXME engine select
-            Annotations.callPyper(self, self.multiData, settingsReader=self.settingsReader, dataExporter=self.dataExporter)
-        #FIXME if launched from CLI or menu - exit or not
+        if 'detect_ceph' in args.functions:
+            if args.ceph_engine == 'gyro':
+                Annotations.imuToEaf(self, self.multiData, settingsReader=self.settingsReader,dataExporter=self.dataExporter)
+            elif args.ceph_engine == 'eavise':
+                self.setStatus('Not implemented.')
+        if 'detect_manu' in args.functions:
+            if args.manu_engine=='green_people':
+                self.setStatus('Not implemented.')
+            elif args.manu_engine=='pyper':
+                Annotations.callPyper(self, self.multiData, settingsReader=self.settingsReader, dataExporter=self.dataExporter, args=args.manu_args)
+            elif args.manu_engine == 'ssd':
+                self.setStatus('Not implemented.')
+
         if not serial:
             sys.exit()
 
@@ -301,32 +325,37 @@ class ReadTobiiGlasses():
 
 
 #TODO change args in wiki on github
-#TODO all specified functions must work for batch file also
 def main():
     #TODO if manu engine specified, args should be present
     parser = argparse.ArgumentParser(description='Launch ReadTobiiGlasses from the command line.')
     settingsFileGroup = parser.add_mutually_exclusive_group()
     settingsFileGroup.add_argument('-s', '--settings-file', type=str, help='Path to settings XML file.')
-    settingsFileGroup.add_argument('-b', '--batch-file', type=str, help='Path to batch file - to process several settings paths, executing the next specified options on each.')
+    #settingsFileGroup.add_argument('-b', '--batch-file', type=str, help='Path to batch file - to process several settings paths, executing the next specified options on each.')
+
     parser.add_argument('--desc-stats', action='append_const', dest='functions', const='desc_stats', help='Calculate descriptive statistics and save detailed report.')
-    parser.add_argument('--export-gyro', action='append_const', dest='functions', const='export_gyro', help='Export gyroscope to ELAN.')
+
+    cephGroup = parser.add_argument_group('ceph', 'Parameters which apply to ceph annotations.')
+    cephGroup.add_argument('--detect-ceph', action='append_const', dest='functions', const='detect_ceph', help='Export gyroscope to ELAN.')
+    cephGroup.add_argument('--ceph-engine', type=str, choices=['gyro', 'eavise', 'winanalyze'], default='gyro', help='Source of data for ceph motion detection.')
+    cephGroup.add_argument('--ceph-args', nargs='+', default=[128,100,2000,1000,'manu_output'], help='Parameters for the algorithm used for ceph motion detection.')
+
     manuGroup = parser.add_argument_group('manu', 'Parameters which apply to manu annotations.')
     manuGroup.add_argument('--detect-manu', action='append_const', dest='functions', const='detect_manu', help='Perform manu motion detection.')
-    manuGroup.add_argument('--manu-engine', type='str', choices=('green_people', 'pyper', 'tracktor', 'winanalyze', 'ssd'), default='pyper', help='Script or tool to use for manu motion detection.')
-    manuGroup.add_argument('--manu-args', nargs='+', default=[128,100,2000,1000,'manu_output'], help='Parameters for the manu CLI tool, e.g. threshold, etc.')
+    manuGroup.add_argument('--manu-engine', type=str, choices=['green_people', 'pyper', 'tracktor', 'winanalyze', 'ssd'], default='pyper', help='Script or tool to use for manu motion tracking.')
+    #TODO default args copy
+    manuGroup.add_argument('--manu-args', nargs='+', default=[128,100,2000,1000,'annot'], help='Parameters for the manu CLI tool, e.g. threshold, etc.')
     args = parser.parse_args()
 
     #with or without command line parameters
-    #TODO refactor the serial/not serial choose logic, comply to information hiding principle
-    if args.settings_file or args.batch_file:
+    if args.settings_file:# or args.batch_file:
         rtg = ReadTobiiGlasses(gui=False)
         if args.settings_file:
             serial = False
             self.settingsReader.select(args.settings_file)
             self.dataReader.read(self.settingsReader, self.multiData, serial=serial)
-            rtg.CLIProcess(args=args, serial=serial, functions=args.functions)
-        elif args.batch_file:
-            self.settingsReader.selectBatch(pivotData=self.pivotData, stats=self.stats, file=args.batch_file)
+            rtg.CLIProcess(args=args, serial=serial)
+        #elif args.batch_file:
+        #    self.settingsReader.selectBatch(pivotData=self.pivotData, stats=self.stats, file=args.batch_file)
     else:
         ReadTobiiGlasses()
 

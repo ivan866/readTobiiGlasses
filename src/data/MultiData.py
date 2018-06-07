@@ -4,8 +4,11 @@ from datetime import timedelta
 
 from pandas import DataFrame
 
+import pympi
+
 
 from SettingsReader import SettingsReader
+from annotations import Annotations
 from data import Utils
 
 
@@ -93,17 +96,29 @@ class MultiData():
 
     #filter data methods
     #FIXME make channel/type/id arguments consistent across all code
-    def getChannelById(self, channel:str, id:str) -> object:
-        """Returns what's inside multiData[channel][id] dict hierarchy.
+    #but type is correct for settings file type, channel is correct for data channel
+    def getChannelById(self, channel:str, id:str, format:str='as_is') -> object:
+        """Returns what's inside multiData[channel][id] dict hierarchy, possible converting to dataframe.
         
         :param channel: string of type from settings.
         :param id: string of channel id from settings.
-        :return: data object.
+        :return: data object, can be converted to dataframe.
         """
         self.topWindow.logger.debug('get channel by id')
-        return self.multiData[channel][id]
+        result=self.multiData[channel][id]
+        if format=='dataframe':
+            if type(result)==pympi.Elan.Eaf or type(result)==pympi.Praat.TextGrid:
+                return Annotations.parseAnnotationToDataframe(self.topWindow, result, settingsReader=self.settingsReader)
+            elif type(result)==DataFrame:
+                self.topWindow.setStatus('WARNING: Data object was already DataFrame. Returning as is.')
+                return result
+            else:
+                self.topWindow.setStatus('WARNING: converting this type of data to DataFrame not implemented.')
+                return None
+        elif format=='as_is':
+            return result
 
-    def getChannelAndTag(self,channel:str,id:str,ignoreEmpty:bool=True)->object:
+    def getChannelAndTag(self, channel:str, id:str, format:str='as_is', ignoreEmpty:bool=True)->object:
         """Returns what's inside the given channel, but tags the data by record tag, id and interval first.
         
         :param channel: 
@@ -111,7 +126,7 @@ class MultiData():
         :param ignoreEmpty: Whether to cut off the empty and utility intervals.
         :return: 
         """
-        chData = self.getChannelById(channel, id)
+        chData = self.getChannelById(channel, id, format=format)
         if channel=='fixations' or channel=='saccades' or channel=='eyesNotFounds' or channel=='unclassifieds' or channel=="imu" or channel=="gyro" or channel=="accel":
             channelZeroName='gaze'
         else:
@@ -291,4 +306,5 @@ class MultiData():
         """
         #TODO issue #10
         #TODO проверить чтобы длины интервалов не выходили за пределы самой записи, а в статистике при этом должны выводиться фактические суммарные длительности, а не декларированные в настройках
+        #TODO количество и длительности фиксаций в ocul и в gaze должны быть идентичны
         pass
