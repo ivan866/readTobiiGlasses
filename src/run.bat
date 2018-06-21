@@ -1,1 +1,1 @@
-g:\ProgramData\Anaconda3\python ReadTobiiGlasses.py
+g:\ProgramData\Anaconda3Win7\python ReadTobiiGlasses.py --settings-file=g:\projects\multidiscourse\data\pears23\readTobiiGlassesSettings.xml --desc-stats

@@ -21,6 +21,8 @@ import angles
 
 import pympi
 from pympi.Elan import Eaf
+import praatio
+from praatio import tgio
 
 
 from SettingsReader import SettingsReader
@@ -45,6 +47,8 @@ def parseAnnotationToDataframe(topWindow, annotData:object, settingsReader:Setti
         tierNames=annotData.get_tier_names()
     elif type(annotData) == pympi.Praat.TextGrid:
         tierNames=[t.name for t in annotData.get_tiers()]
+    elif type(annotData) == praatio.tgio.Textgrid:
+        tierNames=[t for t in annotData.tierNameList]
 
     result=DataFrame(columns=['Begin_Time'])
     ids = settingsReader.unique(field='id')
@@ -55,6 +59,8 @@ def parseAnnotationToDataframe(topWindow, annotData:object, settingsReader:Setti
             annot=annotData.get_annotation_data_for_tier(tierName)
         elif type(annotData) == pympi.Praat.TextGrid:
             annot=annotData.get_tier(tierName).intervals
+        elif type(annotData) == praatio.tgio.Textgrid:
+            annot=annotData.tierDict[tierName].entryList
         else:
             topWindow.setStatus('ERROR: Unrecognized annotation type.')
             annot=None
@@ -64,14 +70,17 @@ def parseAnnotationToDataframe(topWindow, annotData:object, settingsReader:Setti
         tierName=re.sub(re_start, '', tierName, flags=re.IGNORECASE)
         tierName=re.sub(re_end, '', tierName, flags=re.IGNORECASE)
 
-        #при наличии родительского слоя возвращается более 3 столбцов
-        tierDf=DataFrame(data=annot)
-        tierDf=tierDf.iloc[:,0:3]
-        tierDf.rename(columns={0:'Begin_Time',1:'Duration',2:tierName},inplace=True)
-        #вырезаем табы, оставленные при конвертации из .xls с помощью yey.exe
-        tierDf = tierDf.applymap(lambda x: re.sub('\t(.*)', '\\1', str(x)))
-        #бывают пустые слои
+        # при наличии родительского слоя возвращается более 3 столбцов
+        tierDf = DataFrame(data=annot)
+        tierDf = tierDf.iloc[:, 0:3]
+        # бывают пустые слои
         if len(tierDf):
+            tierDf.rename(columns={tierDf.columns[0]:'Begin_Time',
+                                   tierDf.columns[1]:'Duration',
+                                   tierDf.columns[2]:tierName},
+                          inplace=True)
+            #вырезаем табы, оставленные при конвертации из .xls с помощью yey.exe
+            tierDf = tierDf.applymap(lambda x: re.sub('\t(.*)', '\\1', str(x)))
             tierDf = tierDf.astype({'Begin_Time':float, 'Duration':float},copy=False)
             tierDf['Duration']=tierDf['Duration']-tierDf['Begin_Time']
             if type(annotData) == pympi.Elan.Eaf:
@@ -79,6 +88,9 @@ def parseAnnotationToDataframe(topWindow, annotData:object, settingsReader:Setti
                 tierDf['Duration'] /= 1000
 
             result=result.merge(tierDf, how='outer', sort=True, copy=False)
+        else:
+            #inserting empty column
+            result.insert(loc=len(result.columns), column=tierName, value=pd.Series())
 
     #не совсем корректно удалять nan, но для удобства поиска допустимо, пока все столбцы консистентны
     #но тогда пустые будут влиять на подсчет средних (!) в статистике

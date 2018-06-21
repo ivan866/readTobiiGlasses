@@ -1,7 +1,10 @@
 import os
+import sys
 
 import numpy
 
+import scipy
+import scipy.stats
 from scipy.stats import pearsonr
 from scipy.stats import chisquare
 from scipy.stats import fligner
@@ -9,8 +12,15 @@ from scipy.stats import fligner
 import pandas
 from pandas import DataFrame
 from pandas import Series
+from pandas.io.formats.style import Styler
 
-from matplotlib import pyplot
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+import statsmodels
+
+
 
 from SettingsReader import SettingsReader
 
@@ -32,6 +42,7 @@ class Stats():
 
 
 
+    #FIXME interval sort order must be always unsorted
     def groupbyListAndDescribe(self,data:object,groupby:object,on:str)->DataFrame:
         """Slices data on groupby, aggregates on column and adds some descriptive columns.
 
@@ -46,13 +57,21 @@ class Stats():
             groupby=[groupby]
         if len(groupby):
             #TODO добавить визуализации в виде мелких гистограмм для квартилей в этой статистике
-            grouped=data.groupby(groupby, sort=False)[on]
-            #describe gets exception if len(grouped.indices)==1
-            agg1=grouped.agg(['count','sum','mean','std','min'])
-            agg2=grouped.agg('quantile',q=[0.25,0.5,0.75])
-            #agg2=grouped.agg('quantile',q=[0.2,0.4,0.6,0.8])
-            agg3=grouped.agg(['max'])
-            sliced=pandas.concat([agg1,agg2.unstack(),agg3],axis=1)
+            grouped=data.groupby(groupby, sort=False)
+            onned=grouped[on]
+            #describe() gets exception if len(grouped.indices)==1
+            agg1=onned.agg(['count','sum','mean','std','min'])
+            #FIXME duplicate value list, can set it in ?settings file
+            agg2=onned.agg('quantile',q=[0.25,0.5,0.75])
+            #FIXME? empty agg2 still contains wrong column names because not unstacked
+            if len(agg2):
+                #принудительно сортируется индекс
+                agg2=agg2.unstack()
+            agg3=onned.agg(['max'])
+            sliced=pandas.concat([agg1,agg2,agg3],axis=1)#,sort=False,copy=False)
+            #возвращаем порядок (интервалов) как был исходно (во второй таблице не работает)
+            #sliced=sliced.reindex(index=onned.indices, copy=False)
+            sliced.sort_index(inplace=True)
             slicedCountRat = sliced['count'] / sliced['count'].sum()
             slicedSumRat = sliced['sum'] / sliced['sum'].sum()
             sliced.insert(1, 'count ratio', value=slicedCountRat)
@@ -91,65 +110,6 @@ class Stats():
 
 
 
-    def save(self,file:str,data:list,sheets:list=[],serial:bool=False) -> None:
-        """Writes calculated statistic to files.
-
-        :param file: File path.
-        :param data: List of DataFrame objects.
-        :param sheets: List of sheet names.
-        :param serial: Whether to save csv along with Excel files.
-        :return:
-        """
-        if serial:
-            self.saveCSV(file,data)
-        self.saveIncrementally(file,data,sheets)
-
-    def saveCSV(self,file:str,data:list)->None:
-        """Writes stats to many csv, one for each table.
-
-        :param file:
-        :param data:
-        :return:
-        """
-        dfNum = 0
-        for df in data:
-            dfNum = dfNum + 1
-            fileInd = os.path.splitext(file)[0] + '_' + str(dfNum) + '.csv'
-            # кодировка на случай кириллицы
-            df.to_csv(fileInd, sep='\t', encoding='UTF-8')
-
-    def saveIncrementally(self,file:str,data:list,sheets:list=[])->None:
-        """Writes dataframes to one excel file, stacking them on the same sheet.
-
-        :param file:
-        :param data:
-        :param sheets:
-        :return:
-        """
-        self.topWindow.logger.debug('save incrementally')
-        if len(sheets) and len(data)!=len(sheets):
-            raise ValueError
-
-        #TODO can add pandas Styler for tables
-        writer=pandas.ExcelWriter(file)
-        dfNum=0
-        startrow=0
-        startrows={}
-        for sheet in sheets:
-            startrows[sheet]=0
-
-        for df in data:
-            if len(sheets):
-                startrow=startrows[sheets[dfNum]]
-                df.to_excel(writer, startrow=startrow, sheet_name=sheets[dfNum])
-                startrows[sheets[dfNum]]=startrow+df.shape[0]+3
-                dfNum=dfNum+1
-            else:
-                df.to_excel(writer, startrow=startrow)
-                startrow = startrow + df.shape[0] + 3
-            writer.save()
-
-
 
 
     def descriptive(self, multiData, dataExporter:object, serial:bool=False, savePath:str='') -> None:
@@ -163,15 +123,19 @@ class Stats():
         :param savePath:
         :return:
         """
-        self.topWindow.logger.debug('descriptive stats')
-        self.topWindow.setStatus('Gathering statistics... please wait.')
-        saveDir=dataExporter.createDir(prefix='stats', serial=serial, savePath=savePath)
-        self.topWindow.logger.debug('iterating through data channels...')
-
+        try:
+            saveDir=dataExporter.createDir(prefix='stats', serial=serial, savePath=savePath)
+        except ValueError:
+            self.topWindow.reportError()
+            return None
 
         #статистика
+        self.topWindow.logger.debug('descriptive stats')
+        self.topWindow.logger.debug('iterating through data channels...')
+        self.topWindow.setStatus('Gathering statistics... please wait.')
         if self.settingsReader.settings.find("interval[@id='']") is not None:
             self.topWindow.setStatus('WARNING: Unnamed intervals skipped!')
+        statsType='descriptive'
 
 
 
@@ -179,23 +143,32 @@ class Stats():
         messageShown=False
         for (channel, id) in multiData.genChannelIds(channel='fixations'):
             #TODO need refactor copies of this block
+            channelZeroName=self.settingsReader.substGazeRelatedChannels(channel)
             if not messageShown:
-                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                self.topWindow.setStatus('Now doing {0} channel.'.format(channelZeroName))
                 messageShown=True
-            fData = multiData.getChannelAndTag(channel, id)
-            #allData=multiData.getDataFromAll(chData,startFrom)
-            sData = multiData.getChannelAndTag('saccades', id)
-            enfData = multiData.getChannelAndTag('eyesNotFounds', id)
 
-            file=saveDir + '/' + self.settingsReader.getPathAttrById(channel, id) + '_descriptive.xls'
-            self.save(file,[self.groupbyListAndDescribe(fData, [], 'Gaze event duration'),
-                            self.groupbyListAndDescribe(fData, 'Interval', 'Gaze event duration'),
-                            self.groupbyListAndDescribe(sData, [], 'Gaze event duration'),
-                            self.groupbyListAndDescribe(sData, 'Interval', 'Gaze event duration'),
-                            self.groupbyListAndDescribe(enfData, [], 'Gaze event duration'),
-                            self.groupbyListAndDescribe(enfData, 'Interval', 'Gaze event duration')],
-                      sheets=['Fixations','Fixations','Saccades','Saccades','EyesNotFounds','EyesNotFounds'],
-                      serial=serial)
+            try:
+                fData = multiData.getChannelAndTag(channel, id)
+                #allData=multiData.getDataFromAll(chData,startFrom)
+                sData = multiData.getChannelAndTag('saccades', id)
+                enfData = multiData.getChannelAndTag('eyesNotFounds', id)
+
+                file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channelZeroName, id),statsType)
+                self.save(file,[self.groupbyListAndDescribe(fData, [], 'Gaze event duration'),
+                                self.groupbyListAndDescribe(fData, 'Interval', 'Gaze event duration'),
+                                self.groupbyListAndDescribe(sData, [], 'Gaze event duration'),
+                                self.groupbyListAndDescribe(sData, 'Interval', 'Gaze event duration'),
+                                self.groupbyListAndDescribe(enfData, [], 'Gaze event duration'),
+                                self.groupbyListAndDescribe(enfData, 'Interval', 'Gaze event duration')],
+                          sheets=['Fixations','Fixations','Saccades','Saccades','EyesNotFounds','EyesNotFounds'],
+                          serial=serial)
+            except AttributeError:
+                self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
+            except:
+                self.topWindow.reportError()
+                self.topWindow.setStatus('Skipping {0} channel for id {1}.'.format(channel,id),color='error')
+
 
 
 
@@ -206,18 +179,30 @@ class Stats():
             if not messageShown:
                 self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
                 messageShown = True
-            data = multiData.getChannelAndTag(channel, id, format='dataframe')
+            try:
+                data = multiData.getChannelAndTag(channel, id, format='dataframe')
 
-            file=saveDir + '/' + self.settingsReader.getPathAttrById(channel, id) + '_descriptive.xls'
-            self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
-                            self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'Words', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'Supra', 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'Words'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'Supra'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Words', 'Supra'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'Words', 'Supra'], 'Duration')],
-                      serial=serial)
+                file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channel, id),statsType)
+                self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
+                                self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'Words', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'Supra', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Words'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Supra'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Words', 'Supra'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Words', 'Supra'], 'Duration')],
+                          serial=serial)
+            #FIXME large duplicated try-except blocks, need refactor to method
+            except AttributeError:
+                self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel, id))
+            except KeyError:
+                self.topWindow.reportError()
+                self.topWindow.setStatus('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel,id),color='error')
+                #FIXME assumes file is .eaf without checking it
+                self.topWindow.setStatus('Try searching for mistakes, typos and inconsistent naming schemes in .eaf.',color='error')
+            except:
+                self.topWindow.reportError()
+                self.topWindow.setStatus('Skipping {0} channel for id {1}.'.format(channel, id),color='error')
 
 
 
@@ -229,34 +214,53 @@ class Stats():
             if not messageShown:
                 self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
                 messageShown = True
-            data = multiData.getChannelAndTag(channel, id, format='dataframe')
-            #TODO проверить можно ли отбросить продублированные значения если не была снята галочка Repeat values of annotations
-            #self.topWindow.setStatus('WARNING: only \'mGesture\' tier will be considered in current implementation.')
-            #data.dropna(subset=(['mGesture']), inplace=True)
+            try:
+                data = multiData.getChannelAndTag(channel, id, format='dataframe')
+                #TODO проверить можно ли отбросить продублированные значения если не была снята галочка Repeat values of annotations
+                #self.topWindow.setStatus('WARNING: only \'mGesture\' tier will be considered in current implementation.')
+                #data.dropna(subset=(['mGesture']), inplace=True)
 
-            file=saveDir + '/' + self.settingsReader.getPathAttrById(channel, id) + '_descriptive.xls'
-            self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
-                            self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'mLtMtType', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'mRtMtType', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'mLtStType', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'mRtStType', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'mGeHandedness', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'mGeStructure', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'mGeTags', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'mGeFunction', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'mAdType', 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'mLtMtType'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'mRtMtType'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'mLtStType'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'mRtStType'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'mGeStructure'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'mGeTags'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'mGeFunction'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'mAdType'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness','mGeStructure','mGeTags','mGeFunction'], 'Duration')],
-                      serial=serial)
+                file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channel, id),statsType)
+                self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
+                                self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mLtMtType', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mRtMtType', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mLtStType', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mRtStType', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mGeHandedness', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mGeStructure', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mGeTags', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mGeFunction', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mAdType', 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['mAdaptor', 'mAdType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mLtGeStroke', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mRtGeStroke', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mAllGeStroke', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mLtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mRtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mLtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mRtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mGeStructure'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mGeTags'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mGeFunction'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mAdType'], 'Duration'),
+								#self.groupbyListAndDescribe(data, ['Interval', 'mAdaptor', 'mAdType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mLtGeStroke'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mRtGeStroke'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mAllGeStroke'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mLtGeStroke', 'mRtGeStroke', 'mAllGeStroke'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness','mGeStructure','mGeTags','mGeFunction', 'mAllGeStroke'], 'Duration')],
+                          serial=serial)
+            except AttributeError:
+                self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
+            except KeyError:
+                self.topWindow.reportError()
+                self.topWindow.setStatus('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel,id),color='error')
+                self.topWindow.setStatus('Try searching for mistakes, typos and inconsistent naming schemes in .eaf.',color='error')
+            except:
+                self.topWindow.reportError()
+                self.topWindow.setStatus('Skipping {0} channel for id {1}.'.format(channel,id),color='error')
 
 
 
@@ -269,16 +273,26 @@ class Stats():
                 messageShown = True
             data = multiData.getChannelAndTag(channel, id, format='dataframe')
 
-            file=saveDir + '/' + self.settingsReader.getPathAttrById(channel, id) + '_descriptive.xls'
-            self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
-                            self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'cMoveType', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'cTags', 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'cMoveType'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'cTags'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['cMoveType', 'cTags'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'cMoveType', 'cTags'], 'Duration')],
-                      serial=serial)
+            try:
+                file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channel, id),statsType)
+                self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
+                                self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'cMoveType', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'cTags', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'cMoveType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'cTags'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['cMoveType', 'cTags'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'cMoveType', 'cTags'], 'Duration')],
+                          serial=serial)
+            except AttributeError:
+                self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
+            except KeyError:
+                self.topWindow.reportError()
+                self.topWindow.setStatus('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel,id),color='error')
+                self.topWindow.setStatus('Try searching for mistakes, typos and inconsistent naming schemes .eaf.',color='error')
+            except:
+                self.topWindow.reportError()
+                self.topWindow.setStatus('Skipping {0} channel for id {1}.'.format(channel,id),color='error')
 
 
 
@@ -288,26 +302,37 @@ class Stats():
             if not messageShown:
                 self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
                 messageShown = True
-            data=multiData.getChannelAndTag(channel, id, format='dataframe')
-            #FIXME временный 'костыль', пока не поправят в исходниках аннотаций
-            data.rename(columns={'E_Locus': 'E_Localization'}, inplace=True)
 
-            file=saveDir + '/' + self.settingsReader.getPathAttrById(channel, id) + '_descriptive.xls'
-            self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
-                            self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
-                            self.groupbyListAndDescribe(data, 'E_Interlocutor', 'Duration'),
-                            self.groupbyListAndDescribe(data, data['E_Localization'].str.lower(), 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', 'E_Interlocutor'], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['Interval', data['E_Localization'].str.lower()], 'Duration'),
-                            self.groupbyListAndDescribe(data, ['E_Interlocutor', data['E_Localization'].str.lower()], 'Duration'),
-                            self.groupbyListAndDescribe(data,['Interval', 'E_Interlocutor', data['E_Localization'].str.lower()],'Duration')],
-                      serial=serial)
+            try:
+                data=multiData.getChannelAndTag(channel, id, format='dataframe')
+                #FIXME временный 'костыль', пока не поправят в исходниках аннотаций
+                data.rename(columns={'E_Locus': 'E_Localization'}, inplace=True)
+
+                file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channel, id),statsType)
+                self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
+                                self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'E_Interlocutor', 'Duration'),
+                                self.groupbyListAndDescribe(data, data['E_Localization'].str.lower(), 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'E_Interlocutor'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', data['E_Localization'].str.lower()], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['E_Interlocutor', data['E_Localization'].str.lower()], 'Duration'),
+                                self.groupbyListAndDescribe(data,['Interval', 'E_Interlocutor', data['E_Localization'].str.lower()],'Duration')],
+                          serial=serial)
+            except AttributeError:
+                self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
+            except KeyError:
+                self.topWindow.reportError()
+                self.topWindow.setStatus('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel,id),color='error')
+                self.topWindow.setStatus('Try searching for mistakes, typos and inconsistent naming schemes in .eaf.',color='error')
+            except:
+                self.topWindow.reportError()
+                self.topWindow.setStatus('Skipping {0} channel for id {1}.'.format(channel,id),color='error')
 
 
 
 
 
-        self.topWindow.setStatus('Descriptive statistic reports saved.',color='success')
+        self.topWindow.setStatus('Descriptive statistic reports saved to {0}.'.format(saveDir),color='success')
         dataExporter.copyMeta()
 
 
@@ -365,3 +390,140 @@ class Stats():
         # pyplot.grid(True)
         # pyplot.tight_layout()
         pass
+
+
+
+    def ANOVA_stats(self, multiData:object, pivotData:object, dataExporter:object)->None:
+        """Analysis of variance on distribution data.
+
+        Combinations to include in cross-table must be specified.
+
+        :param multiData: multiData struct with different data channels, unpivoted and ungrouped.
+        :param pivotData: ??needed?   pivoted data, mainly after running 'Batch and pivot'.
+        :param dataExporter:
+        :return:
+        """
+        self.topWindow.setStatus('ANOVA requested.')
+        self.topWindow.setStatus('Standardizing to z-scores.')
+        #проверить есть ли разница в величине f-теста с и без z-score
+        zdata1=scipy.stats.zscore(data1, axis=0)
+
+        self.topWindow.setStatus('Sample size and distribution requirements.')
+        #statsmodels.stats.power.FTestAnovaPower.power
+        #number of modes ??function
+        kernel1=scipy.stats.gaussian_kde(data1, bw_method='scott')
+        kernel2=scipy.stats.gaussian_kde(data2, bw_method='scott')
+        xs=numpy.linspace(min(data1),max(data1),100)
+        plt.plot(xs,kernel1(xs))
+        plt.plot(xs,kernel2(xs))
+
+        #scipy.stats.norm.rvs(size=100)
+        sns.kdeplot(data1, bw=0.5, cumulative=True)  #kdeplot(data1, data2)
+        sns.kdeplot(data2, bw=0.5)
+        # Q-Q plot
+        #plt.scatter()
+        scipy.stats.kstest(zdata1, 'norm')
+        #scipy.stats.levene()
+
+        self.topWindow.setStatus('F-test:')
+        sample1=multiData.getChannelAndTag('ocul','N', format='dataframe')
+        data1=sample1.loc[sample1['Interval']=='01_tell','Duration']
+        sample2=multiData.getChannelAndTag('ocul','R', format='dataframe')
+        data2=sample2.loc[sample2['Interval']=='01_tell','Duration']
+        scipy.stats.f_oneway(data1,data2)
+
+
+        #effect size
+        #scheffe test
+
+        self.topWindow.setStatus('Distributional plots...')
+        #plt.bar()
+        #scipy.stats.binned_statistic(, statistic='count', bins=10)
+        #data1.hist(bins=10)
+        plt.hist(data1, bins='auto', density=False, cumulative=True, orientation='vertical')
+        #scipy.stats.cumfreq(, numbins=10)
+        #plt.boxplot(data2, notch=True, sym='.', vert=True)   #labels=[]
+        #dataframe.boxplot(,by=,figsize=(8,6))
+        #Q-Q plot можно для разных переменных, чтобы видеть профиль и сравнивать
+        #plt.errorbar()
+        #plt.savefig()
+
+
+
+
+
+
+
+
+    def save(self,file:str,data:list,sheets:list=[],serial:bool=False) -> None:
+        """Writes calculated statistic to files.
+
+        :param file: File path.
+        :param data: List of DataFrame objects.
+        :param sheets: List of sheet names.
+        :param serial: Whether to save csv along with Excel files.
+        :return:
+        """
+        if serial:
+            self.saveCSV(file,data)
+        self.saveIncrementally(file,data,sheets)
+
+
+
+    def saveCSV(self,file:str,data:list)->None:
+        """Writes stats to many csv, one for each table.
+
+        :param file:
+        :param data:
+        :return:
+        """
+        dfNum = 0
+        for df in data:
+            dfNum = dfNum + 1
+            fileInd = os.path.splitext(file)[0] + '_' + str(dfNum) + '.csv'
+            # кодировка на случай кириллицы
+            df.to_csv(fileInd, sep='\t', encoding='UTF-8')
+
+
+
+    def saveIncrementally(self,file:str,data:list,sheets:list=[])->None:
+        """Writes dataframes to one excel file, stacking them on the same sheet.
+
+        :param file:
+        :param data:
+        :param sheets:
+        :return:
+        """
+        self.topWindow.logger.debug('save incrementally')
+        if len(sheets) and len(data)!=len(sheets):
+            raise ValueError
+
+        writer=pandas.ExcelWriter(file)
+        dfNum=0
+        startrow=0
+        startrows={}
+        for sheet in sheets:
+            startrows[sheet]=0
+
+        for df in data:
+            #st = Styler(df, precision=3)
+            #st.background_gradient()
+            #st.highlight_max()
+            #st.highlight_min()
+            #st.highlight_null()
+            if len(sheets):
+                startrow=startrows[sheets[dfNum]]
+                df.to_excel(writer, startrow=startrow, sheet_name=sheets[dfNum])
+                #st.to_excel(writer, startrow=startrow, sheet_name=sheets[dfNum])
+                startrows[sheets[dfNum]]=startrow+df.shape[0]+3
+                dfNum=dfNum+1
+            else:
+                if len(df):
+                    self.topWindow.logger.debug('writing xls file')
+                    df.to_excel(writer, startrow=startrow)
+                    #st.to_excel(writer, startrow=startrow)
+                    startrow = startrow + df.shape[0] + 3
+                else:
+                    self.topWindow.setStatus('WARNING: Empty table encountered in file {0}. Omitting from report.'.format(os.path.basename(file)))
+
+            writer.save()

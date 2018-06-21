@@ -5,6 +5,7 @@ from datetime import timedelta
 from pandas import DataFrame
 
 import pympi
+import praatio
 
 
 from SettingsReader import SettingsReader
@@ -54,6 +55,7 @@ class MultiData():
     #     :return:
     #     """
 
+
     #TODO replace camelcase methods with underscores everywhere
     def genChannelIds(self,channel:str)->tuple:
         """Generator of ids present in multiData in particular channel.
@@ -62,10 +64,7 @@ class MultiData():
         :return: Tuple with current channel and id, if such id present in multiData.
         """
         if self.settingsReader.check() and self.check():
-            if channel == 'fixations' or channel == 'saccades' or channel == 'eyesNotFounds' or channel == 'unclassifieds' or channel == "imu" or channel == "gyro" or channel == "accel":
-                channelZeroName = 'gaze'
-            else:
-                channelZeroName = channel
+            channelZeroName = self.settingsReader.substGazeRelatedChannels(channel)
             for file in self.settingsReader.getTypes(channelZeroName):
                 id=file.get('id')
                 if self.hasChannelById(channel, id):
@@ -102,12 +101,13 @@ class MultiData():
         
         :param channel: string of type from settings.
         :param id: string of channel id from settings.
+        :param format: specify this str to convert to DataFrame type
         :return: data object, can be converted to dataframe.
         """
         self.topWindow.logger.debug('get channel by id')
         result=self.multiData[channel][id]
         if format=='dataframe':
-            if type(result)==pympi.Elan.Eaf or type(result)==pympi.Praat.TextGrid:
+            if type(result)==pympi.Elan.Eaf or type(result)==pympi.Praat.TextGrid or type(result)==praatio.tgio.Textgrid:
                 return Annotations.parseAnnotationToDataframe(self.topWindow, result, settingsReader=self.settingsReader)
             elif type(result)==DataFrame:
                 self.topWindow.setStatus('WARNING: Data object was already DataFrame. Returning as is.')
@@ -123,14 +123,12 @@ class MultiData():
         
         :param channel: 
         :param id:
+        :param format: str for type conversion
         :param ignoreEmpty: Whether to cut off the empty and utility intervals.
         :return: 
         """
         chData = self.getChannelById(channel, id, format=format)
-        if channel=='fixations' or channel=='saccades' or channel=='eyesNotFounds' or channel=='unclassifieds' or channel=="imu" or channel=="gyro" or channel=="accel":
-            channelZeroName='gaze'
-        else:
-            channelZeroName=channel
+        channelZeroName = self.settingsReader.substGazeRelatedChannels(channel)
         startFrom = self.settingsReader.getZeroTimeById(channelZeroName, id)
         pathAttr=self.settingsReader.getPathAttrById(type=channelZeroName,id=id)
         if ('Record tag' not in chData.columns) and ('Id' not in chData.columns):
@@ -178,6 +176,7 @@ class MultiData():
         if type(timeEnd) is not timedelta:
             timeEnd=Utils.parseTime(timeEnd)
         #TODO timedelta [:] indexing
+        #TODO can use Series.between_time()
         return data.loc[(data['Timedelta']>=timeStart) & (data['Timedelta']<timeEnd)]
 
     def getDataInterval(self,data:object,startFrom:object,interval:str) -> object:

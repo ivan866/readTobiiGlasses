@@ -1,11 +1,13 @@
 import argparse
 import os
+import platform
 import hashlib
 import shutil
 import re
 import subprocess
 from datetime import datetime
 
+import xml
 import xml.etree.ElementTree as ET
 
 from tkinter import filedialog
@@ -65,6 +67,8 @@ class SettingsReader:
         return self.dataDir
 
 
+
+
     def select(self, file:str=None) -> None:
         """Selects file with settings, either via dialogue or literally by path string.
         
@@ -82,18 +86,25 @@ class SettingsReader:
             #TODO add watchdog when file modified - reread data
             self.topWindow.setStatus('Settings file selected (not read or modified yet).')
         else:
-            self.topWindow.setStatus('WARNING: Nothing selected. Please retry.')
+            self.topWindow.setStatus('WARNING: Nothing selected. Please retry or choose different menu item.')
 
 
     #TODO the function needed for the batch must also be selected through the menu
-    def selectBatch(self, pivotData:object, stats:object, file:str=None)-> None:
+    def selectBatch(self, pivotData:object, stats:object, file:str=None, dataReader:object=None, multiData:object=None)-> None:
         """Parses .bat file and runs every script with every settings file in it. Then combines reports together for summary statistic analysis.
 
         :param file: path to .bat file
         :param pivotData: PivotData object to hold tables into.
         :param stats: Stats object to write files with.
+        :param file:
+        :param dataReader:
+        :param multiData:
         :return: 
         """
+        #just storing the references to these global objects
+        self.dataReader=dataReader
+        self.multiData=multiData
+
         if not file:
             batchFile = filedialog.askopenfilename(filetypes = (("Batch command file","*.bat"),("all files","*.*")))
         else:
@@ -107,6 +118,8 @@ class SettingsReader:
             self.readBatch(pivotData=pivotData,stats=stats)
 
 
+
+
     def read(self,serial:bool=False)->None:
         """Actually reads and parses xml file contents.
         
@@ -115,8 +128,19 @@ class SettingsReader:
         """
         #TODO check XML validity
         #self.topWindow.logger.debug('reading settings...')
-        self.settingsTree = ET.parse(self.settingsFile)
-        self.settings = self.settingsTree.getroot()
+        try:
+            self.settingsTree = ET.parse(self.settingsFile)
+            self.settings = self.settingsTree.getroot()
+        except xml.etree.ElementTree.ParseError:
+            self.topWindow.reportError()
+            self.topWindow.setStatus('ERROR: Bad settings file. Check your XML is valid.')
+            return None
+        except:
+            self.topWindow.reportError()
+            self.topWindow.setStatus('ERROR: Parsing settings failed. Abort.')
+            return None
+
+
         if serial:
             for el in self.settings.findall('*'):
                 el.set('batchNum', str(self.batchNum))
@@ -127,13 +151,14 @@ class SettingsReader:
         else:
             self.batchSettings.extend(self.settings)
 
-        self.topWindow.setStatus('Settings parsed ('+self.settingsFile+').')
+        self.topWindow.setStatus('Settings parsed ('+self.settingsFile+').',color='success')
 
         if len(self.getIntervals(ignoreEmpty=True)) == 0:
             self.topWindow.setStatus('WARNING: No intervals specified. Please explicitly specify at least 1 named interval in settings file.')
 
 
-    #FIXME not only stats can be done in batch mode
+    #FIXME not only desc-stats can be done in batch mode
+    #TODO проверить что если запустить batch только с одной строкой
     #processed stats are saved to common 'batch' dir, from where then all tables are read again and pivoted
     def readBatch(self,pivotData:object,stats:object)->None:
         """Reads and executes runs from batch sequentially.
@@ -142,19 +167,27 @@ class SettingsReader:
         :param stats:
         :return: 
         """
-        self.topWindow.setStatus('Batch file specified. Working (REM lines not ignored)...')
+        self.topWindow.setStatus('Batch file specified. Working...')
+        self.topWindow.setStatus('WARNING: REM lines __NOT__ ignored.')
         now = datetime.now().strftime('%Y-%m-%d %H_%M_%S')
         self.batchDir = os.getcwd() + '/batch_' + now
+        serial=True
         with open(self.batchFile) as f:
             line = f.readline()
             while line:
                 args = argparse.Namespace()
-                args.settings_file = re.search('--settings=(.+)', line).groups()[0]
+                args.settings_file = re.search('--settings-file=(.*?)[\s$]', line).groups()[0]
                 args.functions=['desc_stats']
+
                 self.batchNum=self.batchNum+1
                 savePath = self.batchDir + '/' + str(self.batchNum)
                 self.topWindow.setStatus('--Line ' + str(self.batchNum)+'--')
-                self.topWindow.CLIProcess(args, serial=True, savePath=savePath)
+
+                #FIXME partly duplicate code (in CLI interface)
+                self.select(args.settings_file)
+                self.dataReader.read(self, self.multiData, serial=serial)
+
+                self.topWindow.CLIProcess(args, serial=serial, savePath=savePath)
                 line = f.readline()
 
         pivotData.pivot(settingsReader=self,stats=stats)
@@ -162,16 +195,41 @@ class SettingsReader:
         #нет ли дубля с функцией DataExporter.saveMeta()?
         self.saveSerial()
         shutil.copy2(self.batchFile, self.batchDir + '/' + os.path.basename(self.batchFile))
-        self.topWindow.setStatus('Batch complete. Pivot tables ready.')
+        self.topWindow.setStatus('Batch complete. Pivot tables ready.',color='success')
         self.topWindow.saveReport(self.batchDir)
+
+
+
 
 
     def open(self) -> None:
         """Asynchronously opens settings in external text editor."""
-        #TODO check OS type with platform.platform / platform.system
-        self.topWindow.setStatus('Calling external editor...')
-        subprocess.run('npp/notepad++.exe '+self.settingsFile)
-        self.topWindow.setStatus('Returned from external editor.')
+        if self.check():
+            name=platform.system().lower()
+            if 'windows' in name:
+                self.topWindow.setStatus('Calling Notepad...')
+                subprocess.run('notepad '+self.settingsFile)
+            elif 'linux' in name:
+                try:
+                    self.topWindow.setStatus('Calling gedit...')
+                    subprocess.run('gedit '+self.settingsFile)
+                except CalledProcessError:
+                    try:
+                        self.topWindow.setStatus('Calling Kate...')
+                        subprocess.run('kate ' + self.settingsFile)
+                    except CalledProcessError:
+                        try:
+                            self.topWindow.setStatus('Not found. Fall back to vi...')
+                            subprocess.run('vi ' + self.settingsFile)
+                        except CalledProcessError:
+                            self.topWindow.setStatus('Not found. Abort.')
+                            return None
+            elif 'darwin' in name:
+                self.topWindow.setStatus('Calling default text editor...')
+                subprocess.run('open -e '+self.settingsFile)
+            self.topWindow.setStatus('Returned from editor.')
+
+
 
 
 
@@ -196,6 +254,17 @@ class SettingsReader:
                     yield elem
                 else:
                     self.topWindow.setStatus('WARNING: File specified in settings (' + os.path.basename(file) + ') does not exist!')
+
+    def substGazeRelatedChannels(self,channel:str)->str:
+        """Substitutes gaze related possible channel names to 'gaze', which should be the name of the source file type channel in settings.
+
+        :param channel: gaze related channel name, like fixations or gyro.
+        :return: 'gaze' or, in case of not related channel given, returns the argument unchanged.
+        """
+        if channel == 'fixations' or channel == 'saccades' or channel == 'eyesNotFounds' or channel == 'unclassifieds' or channel == "imu" or channel == "gyro" or channel == "accel":
+            return 'gaze'
+        else:
+            return channel
 
 
     def getIds(self,id:str) -> list:
@@ -242,7 +311,8 @@ class SettingsReader:
         :return: path str.
         """
         #FIXME где уже была использована эта функция, но без учета absolute
-        file=self.getTypeById(type,id)
+        typeZeroName=self.substGazeRelatedChannels(type)
+        file=self.getTypeById(typeZeroName,id)
         path=file.get('path')
         if absolute:
             return self.dataDir+'/'+path
@@ -299,7 +369,7 @@ class SettingsReader:
         :return: A list of interval nodes from settings.
         """
         if ignoreEmpty:
-            return [interval for interval in self.settings.findall("interval") if interval.get('id') and '_' not in interval.get('id')]
+            return [interval for interval in self.settings.findall("interval") if interval.get('id') and '_' not in interval.get('id')[0]]
         else:
             return self.settings.findall("interval")
 
@@ -382,6 +452,7 @@ class SettingsReader:
             return dur.strftime('%M:%S.%f')
 
 
+
     def check(self,full:bool=False) -> bool:
         """Returns True if settings are already selected, False otherwise.
 
@@ -393,13 +464,13 @@ class SettingsReader:
             if self.settingsFile:
                 return True
             else:
-                self.topWindow.setStatus('Select settings first!')
+                self.topWindow.setStatus('WARNING: Select settings first!')
                 return False
         else:
             if self.settings:
                 return True
             else:
-                self.topWindow.setStatus('Read and parse settings first!')
+                self.topWindow.setStatus('WARNING: Read and parse settings first!')
                 return False
 
 

@@ -7,6 +7,8 @@ import pandas as pd
 
 from pympi.Elan import Eaf
 from pympi.Praat import TextGrid
+import praatio
+from praatio import tgio
 
 from annotations import Annotations
 
@@ -58,12 +60,17 @@ class DataReader():
             return
 
         multiData.reset()
-        self.readTobii(settingsReader, multiData)
-        self.readVoc(settingsReader, multiData)
-        self.readManu(settingsReader, multiData)
-        self.readCeph(settingsReader, multiData)
-        self.readOcul(settingsReader, multiData)
-        self.topWindow.setStatus('All valuable data read successfully.',color='success')
+        try:
+            self.readTobii(settingsReader, multiData)
+            self.readVoc(settingsReader, multiData)
+            self.readManu(settingsReader, multiData)
+            self.readCeph(settingsReader, multiData)
+            self.readOcul(settingsReader, multiData)
+            if settingsReader.check(full=True) and multiData.check():
+                self.topWindow.setStatus('All valuable data read successfully.',color='success')
+        except:
+            self.topWindow.reportError()
+            raise
 
 
 
@@ -238,7 +245,18 @@ class DataReader():
             if fileExt.lower() == '.textgrid':
                 self.topWindow.setStatus('Parsing .TextGrid file.')
                 #WARNING: encoding hard-coded
-                vocData = TextGrid(filePath,codec='utf-16-be')
+                try:
+                    vocData = TextGrid(filePath,codec='utf-16-be')
+                except AttributeError:
+                    self.topWindow.setStatus('WARNING: Probably bad TextGrid. Switching to praatio module.')
+                    self.topWindow.setStatus('Try searching for newline characters in annotations.',color='warning')
+
+                    try:
+                        self.topWindow.setStatus('Retrying with praatio.')
+                        vocData=tgio.openTextgrid(filePath)
+                    except:
+                        self.topWindow.setStatus('ERROR: Failed parsing TextGrid. Skipping file.')
+                        return None
             else:
                 self.topWindow.setStatus('ERROR: Unknown file format.')
 

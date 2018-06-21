@@ -1,14 +1,26 @@
 ---------------
-readTobiiGlasses 0.1.5
+2018-07-15 readTobiiGlasses 0.2
 ---------------
-
-What's new?
 
 - New feature: hand motion is tracked by Pyper, result exported to .eaf
 - New feature: green_people.py output now exported to .eaf
 - New feature: annotation intervals are now subject to compare metrics
+- New feature: Media>Video>AviSynth player
+
+
+---------------
+2018-06-15 readTobiiGlasses 0.1.5
+---------------
+
+What's new?
+
+- New feature: ANOVA added to Statistics procedures
+- More versatile and robust file parsing of all types.
+- All types of annotation now can be converted to tabular form, making it possible to export to SQL
 - Line endings changed to CRLF in settings.xml.
 - Command line interface changed and extended.
+- 'total' column names now changed to 'sum', quantile 50% changed to 0.5, etc. in descriptive statistics report xls files
+- praatio, statsmodels dependencies added
 
 Bug fixes:
 

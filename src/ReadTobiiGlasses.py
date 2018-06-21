@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import sys
 from datetime import datetime
 import webbrowser
 
@@ -35,6 +36,7 @@ from viz.plots.TempoPlot import TempoPlot
 from viz.plots.SpatialPlot import SpatialPlot
 from viz.plots.CombiPlot import CombiPlot
 from viz.distribution.Spectrogram import Spectrogram
+from viz.video.AviSynthPlayer import AviSynthPlayer
 
 
 
@@ -47,16 +49,20 @@ class ReadTobiiGlasses():
     
     """
 
+
     def __init__(self,gui:bool=True):
         """Setup application and populate menu.
         
         :param gui: Whether to start gui.
         """
         #TODO switch to ?fltk GUI
+        #TODO add scrollbar to report textfield
+        #FIXME gui freezing while pivoting data
         #TODO command line procedure for gyro2eaf with custom arguments
         #TODO add environment setup script (setup.py), как сделать python package с манифестом пакета
         #TODO !tests and raises error coding style
 		#TODO add bash script for batch
+        #TODO reroute stderr to report field
         #TODO add cli equivalent commands copied to report with actual arguments
         #TODO sync package API
         self.LOG_FORMAT="%(levelname)s %(asctime)s %(pathname)s at %(lineno)s - %(message)s"
@@ -64,6 +70,11 @@ class ReadTobiiGlasses():
                             level=logging.DEBUG,
                             format=self.LOG_FORMAT)
         self.logger=logging.getLogger()
+
+        def rerouteExceptions(type, value, traceback):
+            self.logger.exception("{0}, {1}, {2}".format(str(type), str(value), str(traceback)))
+        #TODO
+        #sys.excepthook = rerouteExceptions
 
 
         self.PROJECT_NAME='Read Tobii Glasses'
@@ -88,6 +99,7 @@ class ReadTobiiGlasses():
         self.report.insert('1.0',datetime.now().strftime('%Y-%m-%d') + '\n')
         self.report_line_num=1
         self.appendReport('ReadTobiiGlasses started.')
+        self.appendReport('Interactive GUI session.')
         self.report.pack(side=LEFT,anchor=NW,fill=BOTH)
 
 
@@ -107,14 +119,16 @@ class ReadTobiiGlasses():
         self.combiPlot = CombiPlot(self)
         self.spectrogram = Spectrogram(self)
 
+        self.aviSynthPlayer = AviSynthPlayer()
+
 
         self.logger.debug('populating menus...')
         #populate menu
         #FIXME all commands refactor to Command pattern
         settingsMenu = Menu(self.rootMenu, tearoff=0)
         settingsMenu.add_command(label="Select...", command=self.settingsReader.select)
-        settingsMenu.add_command(label="Modify in external editor", command=self.settingsReader.open)
-        settingsMenu.add_command(label="Run batch and pivot tables...", command=lambda: self.settingsReader.selectBatch(self.pivotData,self.stats))
+        settingsMenu.add_command(label="Edit...", command=self.settingsReader.open)
+        settingsMenu.add_command(label="Run batch and pivot tables...", command=lambda: self.settingsReader.selectBatch(self.pivotData,self.stats,dataReader=self.dataReader,multiData=self.multiData))
         self.rootMenu.add_cascade(label="Settings", menu=settingsMenu)
 
 
@@ -171,7 +185,7 @@ class ReadTobiiGlasses():
         statsMenu.add_command(label="Descriptive",
                               command=lambda: self.stats.descriptive(self.multiData, dataExporter=self.dataExporter))
         statsMenu.add_command(label="Difference", command=lambda: self.stats.difference(self.pivotData))
-        statsMenu.add_command(label="Variance", command=lambda: self.setStatus('Not implemented.'))
+        statsMenu.add_command(label="ANOVA", command=lambda: self.stats.ANOVA_stats(self.multiData, self.pivotData, dataExporter=self.dataExporter))
         # statsMenu.add_command(label="Save report to Excel", command=self.stats.save)
         self.rootMenu.add_cascade(label="Statistic", menu=statsMenu)
 
@@ -188,7 +202,7 @@ class ReadTobiiGlasses():
         distrMenu.add_command(label="Spectrogram", command=lambda: self.spectrogram.drawByIntervals(self.multiData))
         vizMenu.add_cascade(label="Distribution", menu=distrMenu)
         videoMenu = Menu(vizMenu, tearoff=0)
-        videoMenu.add_command(label="Sync player", command=lambda: self.setStatus('Not implemented.'))
+        videoMenu.add_command(label="AviSynth player", command=lambda: self.aviSynthPlayer.launchAVS(self.settingsReader))
         videoMenu.add_command(label="Gaze point overlay", command=lambda: self.setStatus('Not implemented.'))
         videoMenu.add_command(label="Investigate sync tags", command=lambda: self.setStatus('Not implemented.'))
         videoMenu.add_command(label="Montage single video...", command=lambda: self.setStatus('Not implemented.'))
@@ -223,19 +237,21 @@ class ReadTobiiGlasses():
         :param color: text color, useful for warnings and successful operations.
         :return: 
         """
+        #TODO whether to include 'now' timecode - method argument
         self.report_line_num=self.report_line_num+1
-        startIndex='{0}.9'.format(self.report_line_num)
+        now = datetime.now().strftime('%H:%M:%S')
+        startIndex='{0}.{1}'.format(self.report_line_num, len(now)+1)
         endIndex='{0}.end'.format(self.report_line_num)
+
         if 'error' in text.lower() or 'unknown' in text.lower() or 'fail' in text.lower() or 'there is no' in text.lower() or color=='error':
             color='#FF0000'
         elif 'warn' in text.lower() or color=='warning':
-            color='#FF4422'
-        elif 'success' in text.lower() or color=='success':
+            color='#CC4400'
+        elif 'success' in text.lower() or 'complete' in text.lower() or color=='success':
             color='#006600'
         #TODO ? can add font style for different messages
         #TODO add binding to text to open stat reports
 
-        now = datetime.now().strftime('%H:%M:%S')
         self.report.config(state=NORMAL)
         self.report.insert(END,now+' '+text+'\n')
         self.report.tag_add('line_'+str(self.report_line_num),startIndex,endIndex)
@@ -256,6 +272,13 @@ class ReadTobiiGlasses():
         self.status.config(text=text)
         self.root.update_idletasks()
 
+    def reportError(self)->None:
+        """Prints current Exception info to report field.
+
+        :return: None.
+        """
+        eInfo = sys.exc_info()
+        self.appendReport('{0}: {1}.'.format(eInfo[0].__name__, eInfo[1]),color='error')
 
 
     def saveReport(self,saveDir:str)->None:
@@ -325,6 +348,7 @@ class ReadTobiiGlasses():
 
 
 #TODO change args in wiki on github
+#TODO CLI with settings arg only should load and parse them
 def main():
     #TODO if manu engine specified, args should be present
     parser = argparse.ArgumentParser(description='Launch ReadTobiiGlasses from the command line.')
@@ -347,12 +371,14 @@ def main():
     args = parser.parse_args()
 
     #with or without command line parameters
+    #FIXME если в командной строке указан только файл настроек, какая это сессия считается?
     if args.settings_file:# or args.batch_file:
         rtg = ReadTobiiGlasses(gui=False)
+        rtg.appendReport('Using CLI with args: {0}.'.format(print(args)))
         if args.settings_file:
             serial = False
-            self.settingsReader.select(args.settings_file)
-            self.dataReader.read(self.settingsReader, self.multiData, serial=serial)
+            rtg.settingsReader.select(args.settings_file)
+            rtg.dataReader.read(rtg.settingsReader, rtg.multiData, serial=serial)
             rtg.CLIProcess(args=args, serial=serial)
         #elif args.batch_file:
         #    self.settingsReader.selectBatch(pivotData=self.pivotData, stats=self.stats, file=args.batch_file)

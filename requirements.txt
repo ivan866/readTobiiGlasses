@@ -6,8 +6,11 @@ pandas>=0.21.1
 Pillow
 pygame
 pympi-ling>=1.69
+praatio
 scikit-kinematics>=0.7.3
-scipy
+scipy>=1.0.0
+statsmodels
+matplotlib
 seaborn
 SQLAlchemy
 xlrd

@@ -1,3 +1,3 @@
-g:\Users\ivan866\Anaconda3\python.exe ReadTobiiGlasses.py --settings-file=G:\projects\multidiscourse\data\pears04\readTobiiGlassesSettings.xml
-g:\Users\ivan866\Anaconda3\python.exe ReadTobiiGlasses.py --settings-file=G:\projects\multidiscourse\data\pears22\readTobiiGlassesSettings.xml
-g:\Users\ivan866\Anaconda3\python.exe ReadTobiiGlasses.py --settings-file=G:\projects\multidiscourse\data\pears23\readTobiiGlassesSettings.xml
+g:\ProgramData\Anaconda3Win7\python ReadTobiiGlasses.py --settings-file=G:\projects\multidiscourse\data\pears04\readTobiiGlassesSettings.xml --desc-stats
+g:\ProgramData\Anaconda3Win7\python ReadTobiiGlasses.py --settings-file=G:\projects\multidiscourse\data\pears22\readTobiiGlassesSettings.xml --desc-stats
+g:\ProgramData\Anaconda3Win7\python ReadTobiiGlasses.py --settings-file=G:\projects\multidiscourse\data\pears23\readTobiiGlassesSettings.xml --desc-stats

@@ -34,20 +34,24 @@ class DataExporter():
         :param dryRun: whether to actually create the dir or just generate the path
         :return: Directory path str.
         """
-        now = datetime.now().strftime('%Y-%m-%d %H_%M_%S')
-        dateTag = ET.Element('date')
-        dateTag.text = now
-        #TODO change append to set
-        self.settingsReader.settings.append(dateTag)
+        if self.settingsReader.check(full=True):
+            now = datetime.now().strftime('%Y-%m-%d %H_%M_%S')
+            dateTag = ET.Element('date')
+            dateTag.text = now
+            #TODO change append to set
+            self.settingsReader.settings.append(dateTag)
 
-        if serial:
-            self.saveDir = savePath
+            if serial:
+                self.saveDir = savePath
+            else:
+                self.saveDir = self.settingsReader.dataDir + '/'+str(prefix)+'_' + now
+
+            if not dryRun:
+                os.makedirs(self.saveDir)
+            return self.saveDir
         else:
-            self.saveDir = self.settingsReader.dataDir + '/'+str(prefix)+'_' + now
+            raise ValueError('No settings found')
 
-        if not dryRun:
-            os.makedirs(self.saveDir)
-        return self.saveDir
 
     def copyMeta(self,saveDir:str='')->None:
         """Writes settings and report to previously created save directory.
@@ -55,13 +59,14 @@ class DataExporter():
         :param saveDir:
         :return:
         """
-        if saveDir:
-            metaDir=saveDir
-        else:
-            metaDir=self.saveDir
-        self.settingsReader.save(metaDir)
-        self.topWindow.setStatus('Settings included for reproducibility.')
-        self.topWindow.saveReport(metaDir)
+        if self.settingsReader.check():
+            if saveDir:
+                metaDir=saveDir
+            else:
+                metaDir=self.saveDir
+            self.settingsReader.save(metaDir)
+            self.topWindow.setStatus('Settings included for reproducibility.')
+            self.topWindow.saveReport(metaDir)
 
 
 
@@ -130,6 +135,21 @@ class DataExporter():
                 self.copyMeta()
             else:
                 self.topWindow.setStatus('There is no sensor data to write.')
+
+
+
+
+
+
+    def exportCSV(self, multiData:object)->None:
+        """Writes all data to CSV files.
+
+        Useful for further manual import into MySQL.
+
+        :param multiData:
+        :return:
+        """
+        pass
 
 
 
