@@ -1,0 +1,112 @@
+<?xml version="1.0"?>
+
+
+<!-- This is ReadTobiiGlasses v0.2 settings file -->
+<settings>
+
+	<channel id="ceph">
+		<subject id="N">
+			<record id="22" path="../../../data/pears22/pears22N-ceph_2017-09-22_done.eaf">
+		</subject>
+	</channel>
+	
+	
+	<channel id="eyetracker">
+		<subject id="N">
+			<record id="04" path="../../../data/pears04/2015-07-15 r008 p004 N d27_23.606.tsv" media="../../../data/pears04/Pears04N-ey.mp4" zeroTime="1:49.440">
+			<record id="22" path="../../../data/pears22/2015-08-07 r033 p037 N d25_46.750.tsv" media="../../../data/pears22/Pears22N-ey.mp4" zeroTime="4:28.640">
+			<record id="23" path="../../../data/pears23/2015-08-07 r035 p039 N d19_23.463.tsv" zeroTime="0:15.280">
+		</subject>
+		<subject id="R">
+			<record id="04" path="../../../data/pears04/2015-07-15 r004 p004 02 R d27_41.400.tsv" media="../../../data/pears04/Pears04R-ey.mp4" zeroTime="2:16.600">
+			<record id="22" path="../../../data/pears22/2015-08-07 r031 p036 R d21_01.199.tsv" media="../../../data/pears22/Pears22R-ey.mp4" zeroTime="1:34.560">
+			<record id="23" path="../../../data/pears23/2015-08-07 r034 p038 02 R d18_44.270.tsv" zeroTime="0:47.000">
+		</subject>
+	</channel>
+	
+	
+	<channel id="manu">
+		<subject id="C">
+			<record id="04" path="../../../data/pears04/pears04C-manu-internal_2018-06-19.eaf" media="../../../data/pears04/Pears04C-vi-lite.avi">
+			<record id="22" path="../../../data/pears22/pears22C-manu-internal_2018-06-19.eaf" media="../../../data/pears22/Pears22C-vi-lite.avi">
+			<record id="23" path="../../../data/pears23/pears23C-manu-internal_2018-06-19.eaf" media="../../../data/pears23/Pears23C-vi-lite.avi">
+		</subject>
+		<subject id="N">
+			<record id="04" path="../../../data/pears04/pears04N-manu-internal_2018-06-19.eaf" media="../../../data/pears04/Pears04N-vi-lite.avi">
+			<record id="22" path="../../../data/pears22/pears22N-manu-internal_2018-06-19.eaf" media="../../../data/pears22/Pears22N-vi-lite.avi">
+			<record id="23" path="../../../data/pears23/pears23N-manu-internal_2018-06-19.eaf" media="../../../data/pears23/Pears23N-vi-lite.avi">
+		</subject>
+		<subject id="R">
+			<record id="04" path="../../../data/pears04/pears04R-manu-internal_2018-06-19.eaf" media="../../../data/pears04/Pears04R-vi-lite.avi">
+			<record id="22" path="../../../data/pears22/pears22R-manu-internal_2018-06-19.eaf" media="../../../data/pears22/Pears22R-vi-lite.avi">
+			<record id="23" path="../../../data/pears23/pears23R-manu-internal_2018-06-19.eaf" media="../../../data/pears23/Pears23R-vi-lite.avi">
+		</subject>
+		<subject id="W">
+			<record id="04" media="../../../data/pears04/Pears04W-vi-lite.avi">
+			<record id="22" media="../../../data/pears22/Pears22W-vi-lite.avi">
+			<record id="23" media="../../../data/pears23/Pears23W-vi-lite.avi">
+		</subject>
+	</channel>
+	
+	
+	<channel id="ocul">
+		<subject id="N">
+			<record id="04" path="../../../data/pears04/pears04N-ocul.eaf">
+			<record id="22" path="../../../data/pears22/pears22N-ocul.eaf">
+			<record id="23" path="../../../data/pears23/pears23N-ocul.eaf">
+		</subject>
+		<subject id="R">
+			<record id="04" path="../../../data/pears04/pears04R-ocul.eaf">
+			<record id="22" path="../../../data/pears22/pears22R-ocul.eaf">
+			<record id="23" path="../../../data/pears23/pears23R-ocul.eaf">
+		</subject>
+	</channel>
+	
+	
+	<channel id="voc">
+		<subject id="C">
+			<record id="04" path="../../../data/pears04/pears04C-voc_Korotaev_2018-03-14.TextGrid">
+			<record id="22" path="../../../data/pears22/pears22C-voc_Korotaev_2018-03-06.TextGrid" media="../../../data/pears22/Pears22C-au.wav">
+			<record id="23" path="../../../data/pears23/pears23C-voc_Korotaev_2018-03-20.TextGrid">
+		</subject>
+		<subject id="N">
+			<record id="04" path="../../../data/pears04/pears04N-voc_VIP+Korotaev_2018-03-06.TextGrid" media="../../../data/pears04/Pears04N-au.wav">
+			<record id="22" path="../../../data/pears22/pears22N-voc_VIP+Korotaev_2018-03-06.TextGrid" media="../../../data/pears22/Pears22N-au.wav">
+			<record id="23" path="../../../data/pears23/pears23N-voc_Korotaev_2018-03-20.TextGrid">
+		</subject>
+		<subject id="R">
+			<record id="04" path="../../../data/pears04/pears04R-voc_VIP+Korotaev_2018-03-06.TextGrid">
+			<record id="22" path="../../../data/pears22/pears22R-voc_VIP+Korotaev_2018-03-06.TextGrid" media="../../../data/pears22/Pears22R-au.wav">
+			<record id="23" path="../../../data/pears23/pears23R-voc_Korotaev_2018-03-27.TextGrid">
+		</subject>
+		<subject id="W">
+			<record id="22" media="../../../data/pears22/Pears22W-au.wav">
+		</subject>
+	</channel>
+	
+
+	
+	
+	
+	<record id="04">
+		<interval id="01_tell" duration="5:22.569"/>
+		<interval id="02_conv" duration="12:38.039"/>
+		<interval id="" duration="0:24.520"/>
+		<interval id="03_retell" duration="6:35.413"/>
+	</record>
+	<record id="22">
+		<!-- <interval id="record" duration="18:27.860"/> -->
+		<interval id="01_tell" duration="3:37.960"/>
+		<interval id="02_conv" duration="8:48.280"/>
+		<interval id="03_retell" duration="6:01.620"/>
+		<interval id="" duration="17.580"/>
+		<interval id="_static" duration="0:40"/>
+	</record>
+	<record id="23">
+		<interval id="01_tell" duration="3:52.400"/>
+		<interval id="02_conv" duration="7:41.499"/>
+		<interval id="" duration="0:31.600"/>
+		<interval id="03_retell" duration="4:53.623"/>
+	</record>
+
+</settings>

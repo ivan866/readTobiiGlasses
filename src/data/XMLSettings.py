@@ -23,48 +23,23 @@ from data import Utils
 
 
 #TODO check when multiple intervals have empty ids
-class SettingsReader:
+class XMLSettings:
 
     """Reads, parses and queries xml file with settings."""
 
-    readers=[]
+    def __init__(self):
+        self.wd = None
+        self.path = None
+
+        self.xml_tree = None
+        self.xml = None
+
+        self.channels = {}
+        self.subjects = {}
+        self.records = {}
 
 
-    def __init__(self,topWindow):
-        self.topWindow=topWindow
 
-        self.dataDir = None
-        self.settingsFile = None
-        self.settingsTree = None
-        self.settings = None
-
-        self.batchNum=0
-        self.batchFile=None
-        self.batchDir=None
-        self.batchSettingsTree = None
-        self.batchSettings=None
-
-        SettingsReader.readers.append(self)
-
-
-    #TODO refactor to singleton pattern
-    @classmethod
-    def getReader(cls, i:int=0) -> object:
-        """Statically iterates through all settings readers.
-        
-        Makes reader available to code globally.
-        
-        :param i: Index of needed reader.
-        :return: None
-        """
-        return cls.readers[i]
-
-    def getDir(self)->str:
-        """Returns data directory containing this settings file.
-
-        :return: file path str.
-        """
-        return self.dataDir
 
 
 
@@ -76,158 +51,78 @@ class SettingsReader:
         :return: None
         """
         if not file:
-            self.settingsFile = filedialog.askopenfilename(filetypes = (("eXtensible Markup Language","*.xml"),("all files","*.*")))
+            self.path = filedialog.askopenfilename(filetypes = (("eXtensible Markup Language", "*.xml"), ("all files", "*.*")))
         else:
-            self.settingsFile=file
+            self.path=file
 
-        if self.settingsFile:
+        if self.path:
             #TODO check selected file type
-            self.dataDir=os.path.dirname(self.settingsFile)
+            self.wd=os.path.dirname(self.path)
             #TODO add watchdog when file modified - reread data
-            self.topWindow.setStatus('Settings file selected (not read or modified yet).')
+            self.status_cb('Settings file selected (not read or modified yet).')
         else:
-            self.topWindow.setStatus('WARNING: Nothing selected. Please retry or choose different menu item.')
-
-
-    #TODO the function needed for the batch must also be selected through the menu
-    def selectBatch(self, pivotData:object, stats:object, file:str=None, dataReader:object=None, multiData:object=None)-> None:
-        """Parses .bat file and runs every script with every settings file in it. Then combines reports together for summary statistic analysis.
-
-        :param file: path to .bat file
-        :param pivotData: PivotData object to hold tables into.
-        :param stats: Stats object to write files with.
-        :param file:
-        :param dataReader:
-        :param multiData:
-        :return: 
-        """
-        #just storing the references to these global objects
-        self.dataReader=dataReader
-        self.multiData=multiData
-
-        if not file:
-            batchFile = filedialog.askopenfilename(filetypes = (("Batch command file","*.bat"),("all files","*.*")))
-        else:
-            batchFile=file
-
-        if batchFile:
-            #обнуляем на случай повторного запуска в той же сессии
-            self.batchNum = 0
-            self.batchFile=batchFile
-            self.batchSettingsTree=None
-            self.readBatch(pivotData=pivotData,stats=stats)
-
-
-
-
-    def read(self,serial:bool=False)->None:
-        """Actually reads and parses xml file contents.
-        
-        :param serial: If this is a serial batch.
-        :return: 
-        """
-        #TODO check XML validity
-        #self.topWindow.logger.debug('reading settings...')
-        try:
-            self.settingsTree = ET.parse(self.settingsFile)
-            self.settings = self.settingsTree.getroot()
-        except xml.etree.ElementTree.ParseError:
-            self.topWindow.reportError()
-            self.topWindow.setStatus('ERROR: Bad settings file. Check your XML is valid.')
-            return None
-        except:
-            self.topWindow.reportError()
-            self.topWindow.setStatus('ERROR: Parsing settings failed. Abort.')
-            return None
-
-
-        if serial:
-            for el in self.settings.findall('*'):
-                el.set('batchNum', str(self.batchNum))
-        #init of batch settings tree
-        if not self.batchSettingsTree:
-            self.batchSettingsTree=self.settingsTree
-            self.batchSettings=self.batchSettingsTree.getroot()
-        else:
-            self.batchSettings.extend(self.settings)
-
-        self.topWindow.setStatus('Settings parsed ('+self.settingsFile+').',color='success')
-
-        if len(self.getIntervals(ignoreEmpty=True)) == 0:
-            self.topWindow.setStatus('WARNING: No intervals specified. Please explicitly specify at least 1 named interval in settings file.')
-
-
-    #FIXME not only desc-stats can be done in batch mode
-    #TODO проверить что если запустить batch только с одной строкой
-    #processed stats are saved to common 'batch' dir, from where then all tables are read again and pivoted
-    def readBatch(self,pivotData:object,stats:object)->None:
-        """Reads and executes runs from batch sequentially.
-        
-        :param pivotData:
-        :param stats:
-        :return: 
-        """
-        self.topWindow.setStatus('Batch file specified. Working...')
-        self.topWindow.setStatus('WARNING: REM lines __NOT__ ignored.')
-        now = datetime.now().strftime('%Y-%m-%d %H_%M_%S')
-        self.batchDir = os.getcwd() + '/batch_' + now
-        serial=True
-        with open(self.batchFile) as f:
-            line = f.readline()
-            while line:
-                args = argparse.Namespace()
-                args.settings_file = re.search('--settings-file=(.*?)[\s$]', line).groups()[0]
-                args.functions=['desc_stats']
-
-                self.batchNum=self.batchNum+1
-                savePath = self.batchDir + '/' + str(self.batchNum)
-                self.topWindow.setStatus('--Line ' + str(self.batchNum)+'--')
-
-                #FIXME partly duplicate code (in CLI interface)
-                self.select(args.settings_file)
-                self.dataReader.read(self, self.multiData, serial=serial)
-
-                self.topWindow.CLIProcess(args, serial=serial, savePath=savePath)
-                line = f.readline()
-
-        pivotData.pivot(settingsReader=self,stats=stats)
-
-        #нет ли дубля с функцией DataExporter.saveMeta()?
-        self.saveSerial()
-        shutil.copy2(self.batchFile, self.batchDir + '/' + os.path.basename(self.batchFile))
-        self.topWindow.setStatus('Batch complete. Pivot tables ready.',color='success')
-        self.topWindow.saveReport(self.batchDir)
-
-
-
-
-
-    def open(self) -> None:
+            self.status_cb('WARNING: Nothing selected. Please retry or choose different menu item.')
+            
+            
+    def edit(self) -> None:
         """Asynchronously opens settings in external text editor."""
         if self.check():
             name=platform.system().lower()
             if 'windows' in name:
-                self.topWindow.setStatus('Calling Notepad...')
-                subprocess.run('notepad '+self.settingsFile)
+                self.status_cb('Calling Notepad...')
+                subprocess.run('notepad ' + self.path)
             elif 'linux' in name:
                 try:
-                    self.topWindow.setStatus('Calling gedit...')
-                    subprocess.run('gedit '+self.settingsFile)
+                    self.status_cb('Calling gedit...')
+                    subprocess.run('gedit ' + self.path)
                 except CalledProcessError:
                     try:
-                        self.topWindow.setStatus('Calling Kate...')
-                        subprocess.run('kate ' + self.settingsFile)
+                        self.status_cb('Calling Kate...')
+                        subprocess.run('kate ' + self.path)
                     except CalledProcessError:
                         try:
-                            self.topWindow.setStatus('Not found. Fall back to vi...')
-                            subprocess.run('vi ' + self.settingsFile)
+                            self.status_cb('Not found. Fall back to vi...')
+                            subprocess.run('vi ' + self.path)
                         except CalledProcessError:
-                            self.topWindow.setStatus('Not found. Abort.')
+                            self.status_cb('Not found. Abort.')
                             return None
             elif 'darwin' in name:
-                self.topWindow.setStatus('Calling default text editor...')
-                subprocess.run('open -e '+self.settingsFile)
-            self.topWindow.setStatus('Returned from editor.')
+                self.status_cb('Calling default text editor...')
+                subprocess.run('open -e ' + self.path)
+            self.status_cb('Returned from editor.')
+
+
+
+
+
+    def read(self) -> None:
+        """Actually reads and parses xml file contents.
+        
+        :return:
+        """
+        #TODO check XML validity
+        try:
+            self.xml_tree = ET.parse(self.path)
+            self.xml = self.xml_tree.getroot()
+        except xml.etree.ElementTree.ParseError:
+            self.error_cb()
+            self.status_cb('ERROR: Bad settings file. Check your XML is valid.')
+            return None
+        except:
+            self.error_cb()
+            self.status_cb('ERROR: Parsing settings failed. Abort.')
+            return None
+
+        self.status_cb('Settings parsed ({0}).'.format(self.path), color='success')
+
+
+
+
+
+
+
+
+
 
 
 
@@ -244,16 +139,16 @@ class SettingsReader:
         found=False
         if self.check(full=True):
             for elem in self.getTypes(type):
-                file=self.dataDir + '/' + elem.get('path')
+                file= self.wd + '/' + elem.get('path')
                 if os.path.exists(file):
                     if not found:
-                        self.topWindow.setStatus('Reading {0} data...'.format(type))
+                        self.status_cb('Reading {0} data...'.format(type))
                         found=True
                     #добавляем контрольную сумму в настройки
                     elem.set('md5', self.md5(file))
                     yield elem
                 else:
-                    self.topWindow.setStatus('WARNING: File specified in settings (' + os.path.basename(file) + ') does not exist!')
+                    self.status_cb('WARNING: File specified in settings (' + os.path.basename(file) + ') does not exist!')
 
     def substGazeRelatedChannels(self,channel:str)->str:
         """Substitutes gaze related possible channel names to 'gaze', which should be the name of the source file type channel in settings.
@@ -273,7 +168,7 @@ class SettingsReader:
         :param id: id string from settings.
         :return: A list of matches with this id.
         """
-        return self.settings.findall("file[@id='"+id+"']")
+        return self.xml.findall("file[@id='" + id + "']")
 
     def getTypes(self,type:str) -> list:
         """Returns all nodes from settings with this type attribute.
@@ -281,7 +176,7 @@ class SettingsReader:
         :param type: type string from settings.
         :return: A list of file tags by type.
         """
-        return self.settings.findall("file[@type='"+type+"']")
+        return self.xml.findall("file[@type='" + type + "']")
 
     def unique(self,element:str='file',field:str='',serial:bool=False)->list:
         """Filters all specified elements by field and returns unique.
@@ -294,13 +189,14 @@ class SettingsReader:
         if serial:
             elements=self.batchSettings.findall(element)
         else:
-            elements = self.settings.findall(element)
+            elements = self.xml.findall(element)
         l=[]
         for el in elements:
             l.append(el.get(field))
         return np.unique(l)
 
-    def getPathAttrById(self,type:str,id:str,absolute:bool=False)->str:
+
+    def getPathAttrById(self, type:str, id:str, absolute:bool=False) -> str:
         """Returns path of a file suitable as a record tag.
 
         Except it still contains type and id tags.
@@ -315,9 +211,11 @@ class SettingsReader:
         file=self.getTypeById(typeZeroName,id)
         path=file.get('path')
         if absolute:
-            return self.dataDir+'/'+path
+            return self.wd + '/' + path
         else:
             return os.path.splitext(path)[0]
+
+
 
     def getTypeById(self,type:str,id:str,serial:bool=False) -> object:
         """Filters settings nodes by both type and id.
@@ -327,11 +225,11 @@ class SettingsReader:
         :param serial: Whether to find all nodes with this type/id combination. Useful for serial batch.
         :return: ElementTree.Element or list of them.
         """
-        self.topWindow.logger.debug('get type by id')
+        self.top_window.logger.debug('get type by id')
         if serial:
             return self.batchSettings.findall("file[@type='" + type + "'][@id='" + id + "']")
         else:
-            return self.settings.find("file[@type='" + type + "'][@id='"+id+"']")
+            return self.xml.find("file[@type='" + type + "'][@id='" + id + "']")
 
     def getZeroTimeById(self,type:str,id:str,parse:bool=True) -> object:
         """Resolves and returns zeroTime attribute of a file tag.
@@ -359,8 +257,8 @@ class SettingsReader:
         :param id: id string from interval.
         :return: ElementTree.Element
         """
-        self.topWindow.logger.debug('get interval by id')
-        return self.settings.find("interval[@id='"+id+"']")
+        self.top_window.logger.debug('get interval by id')
+        return self.xml.find("interval[@id='" + id + "']")
 
     def getIntervals(self,ignoreEmpty:bool=True) -> list:
         """Returns all intervals.
@@ -369,9 +267,9 @@ class SettingsReader:
         :return: A list of interval nodes from settings.
         """
         if ignoreEmpty:
-            return [interval for interval in self.settings.findall("interval") if interval.get('id') and '_' not in interval.get('id')[0]]
+            return [interval for interval in self.xml.findall("interval") if interval.get('id') and '_' not in interval.get('id')[0]]
         else:
-            return self.settings.findall("interval")
+            return self.xml.findall("interval")
 
 
     def getStartTimeById(self,id:str,format:bool=False) -> object:
@@ -383,7 +281,7 @@ class SettingsReader:
         :param format: bool whether to convert time to str or not.
         :return: Start time of interval in timedelta object.
         """
-        self.topWindow.logger.debug('get start time by id')
+        self.top_window.logger.debug('get start time by id')
         ints=self.getIntervals(ignoreEmpty=False)
         startTime=Utils.parseTime(0)
         thisId=None
@@ -459,18 +357,18 @@ class SettingsReader:
         :param full: if to check settings actually read and parsed already.
         :return: A bool representing presence of settings file path.
         """
-        self.topWindow.logger.debug('check settings')
+        self.top_window.logger.debug('check settings')
         if not full:
-            if self.settingsFile:
+            if self.path:
                 return True
             else:
-                self.topWindow.setStatus('WARNING: Select settings first!')
+                self.status_cb('WARNING: Select settings first!')
                 return False
         else:
-            if self.settings:
+            if self.xml:
                 return True
             else:
-                self.topWindow.setStatus('WARNING: Read and parse settings first!')
+                self.status_cb('WARNING: Read and parse settings first!')
                 return False
 
 
@@ -480,8 +378,8 @@ class SettingsReader:
         :param saveDir: Path to write into.
         :return: 
         """
-        self.topWindow.logger.debug('writing settings...')
-        self.settingsTree.write(saveDir + '/' + os.path.basename(self.settingsFile))
+        self.top_window.logger.debug('writing settings...')
+        self.xml_tree.write(saveDir + '/' + os.path.basename(self.path))
 
     def saveSerial(self,saveDir:str='')->None:
         """Writes combined settings to xml file.
@@ -506,3 +404,26 @@ class SettingsReader:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
+
+
+
+
+
+
+
+
+    #getters and setters
+    # def get_wd(self) -> str:
+    #     """Returns data directory containing this settings file.
+    #
+    #     :return: file path str.
+    #     """
+    #     return self.wd
+    #
+    # def set_status_callback(self, status_callback: function) -> None:
+    #     """
+    #
+    #     :param status_callback:
+    #     :return:
+    #     """
+    #     self.status_callback = status_callback

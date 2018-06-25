@@ -8,20 +8,20 @@ import pympi
 import praatio
 
 
-from SettingsReader import SettingsReader
+from SettingsManager import SettingsManager
 from annotations import Annotations
 from data import Utils
 
 
 
-class MultiData():
+class AnnotationData():
 
     """Basic data structure to hold multidiscourse data.
     
     Includes some helper methods to select different data channels and filter by timestamp.
     """
 
-    def __init__(self,topWindow):
+    def __init__(self, topWindow):
         self.topWindow = topWindow
         self.settingsReader = SettingsReader.getReader()
         self.multiData={}
@@ -39,6 +39,11 @@ class MultiData():
         self.multiData['ceph'] = {}
         self.multiData['ocul'] = {}
         self.empty = True
+
+
+        self.channels = {}
+        self.subjects = {}
+        self.records= {}
 
 
     # def __iter__(self,channel:str):
@@ -80,6 +85,7 @@ class MultiData():
         """
         self.__init__(self.topWindow)
 
+
     def setNode(self, channel: str, id: str, data: object) -> None:
         """Sets chosen node in hierarchy of multiData to given data object.
         
@@ -91,6 +97,8 @@ class MultiData():
         self.topWindow.logger.debug('setting data node...')
         self.multiData[channel][id] = data
         self.empty=False
+
+
 
 
     #filter data methods
@@ -110,10 +118,10 @@ class MultiData():
             if type(result)==pympi.Elan.Eaf or type(result)==pympi.Praat.TextGrid or type(result)==praatio.tgio.Textgrid:
                 return Annotations.parseAnnotationToDataframe(self.topWindow, result, settingsReader=self.settingsReader)
             elif type(result)==DataFrame:
-                self.topWindow.setStatus('WARNING: Data object was already DataFrame. Returning as is.')
+                self.topWindow.set_status('WARNING: Data object was already DataFrame. Returning as is.')
                 return result
             else:
-                self.topWindow.setStatus('WARNING: converting this type of data to DataFrame not implemented.')
+                self.topWindow.set_status('WARNING: converting this type of data to DataFrame not implemented.')
                 return None
         elif format=='as_is':
             return result
@@ -289,7 +297,7 @@ class MultiData():
         if not self.empty:
             return True
         else:
-            self.topWindow.setStatus('WARNING: No data loaded yet. Read data first!')
+            self.topWindow.set_status('WARNING: No data loaded yet. Read data first!')
             return False
 
 
@@ -306,4 +314,5 @@ class MultiData():
         #TODO issue #10
         #TODO проверить чтобы длины интервалов не выходили за пределы самой записи, а в статистике при этом должны выводиться фактические суммарные длительности, а не декларированные в настройках
         #TODO количество и длительности фиксаций в ocul и в gaze должны быть идентичны
+        #что каждого канала только по одному файлу на каждый subject (v0.2)
         pass

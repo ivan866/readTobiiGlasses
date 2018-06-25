@@ -8,12 +8,12 @@ from pandas import DataFrame
 
 import sqlalchemy
 
-from SettingsReader import SettingsReader
+from SettingsManager import SettingsManager
 
 
 
 #FIXME class not needed, just methods
-class DataExporter():
+class OutputWriter():
 
     """Helper class that writes to files some particularly data channels useful for further data analysis."""
 
@@ -39,6 +39,7 @@ class DataExporter():
             dateTag = ET.Element('date')
             dateTag.text = now
             #TODO change append to set
+            #при повторном использованиии файла настроек тегов с датой будет несколько
             self.settingsReader.settings.append(dateTag)
 
             if serial:
@@ -65,8 +66,8 @@ class DataExporter():
             else:
                 metaDir=self.saveDir
             self.settingsReader.save(metaDir)
-            self.topWindow.setStatus('Settings included for reproducibility.')
-            self.topWindow.saveReport(metaDir)
+            self.topWindow.set_status('Settings included for reproducibility.')
+            self.topWindow.save_report(metaDir)
 
 
 
@@ -99,10 +100,10 @@ class DataExporter():
                         multiData.getChannelAndTag('fixations', id).drop(columns=self.colsUnperceptable).to_excel(saveDir + '/' + fixFile, index=False)
                         multiData.getChannelAndTag('saccades', id).drop(columns=self.colsUnperceptable).to_excel(saveDir + '/' + sacFile, index=False)
             if written:
-                self.topWindow.setStatus('Fixations and saccades saved to files. Intervals tagged.',color='success')
+                self.topWindow.set_status('Fixations and saccades saved to files. Intervals tagged.', color='success')
                 self.copyMeta()
             else:
-                self.topWindow.setStatus('There is no data to write.')
+                self.topWindow.set_status('There is no data to write.')
 
 
 
@@ -123,18 +124,18 @@ class DataExporter():
                     #пишем файлы по отдельности
                     gyroFile = os.path.splitext(file.get('path'))[0] + '_gyro.csv'
                     accelFile = os.path.splitext(file.get('path'))[0] + '_accelerometer.csv'
-                    self.topWindow.setStatus('Writing gyro data (file {0})...'.format(os.path.basename(gyroFile)))
+                    self.topWindow.set_status('Writing gyro data (file {0})...'.format(os.path.basename(gyroFile)))
                     gyro=multiData.getChannelAndTag(channel, file.get('id'))
                     accel=multiData.getChannelAndTag('accel', file.get('id'))
                     gyro.drop(columns=self.colsUnperceptable).to_csv(saveDir + '/' + gyroFile, sep='\t', index=False)
-                    self.topWindow.setStatus('Writing accelerometer data (file ' + os.path.basename(accelFile) + ')...')
+                    self.topWindow.set_status('Writing accelerometer data (file ' + os.path.basename(accelFile) + ')...')
                     accel.drop(columns=self.colsUnperceptable).to_csv(saveDir + '/' + accelFile, sep='\t', index=False)
 
             if written > 0:
-                self.topWindow.setStatus('Available sensor data saved to files. Note that samples before zeroTime were removed and intervals tagged.',color='success')
+                self.topWindow.set_status('Available sensor data saved to files. Note that samples before zeroTime were removed and intervals tagged.', color='success')
                 self.copyMeta()
             else:
-                self.topWindow.setStatus('There is no sensor data to write.')
+                self.topWindow.set_status('There is no sensor data to write.')
 
 
 
@@ -155,6 +156,7 @@ class DataExporter():
 
 
 
+    #TODO учитывать stereotype constraints, не дублировать данные границ интервалов в sql-таблицах!
     #TODO SQL export issue + praat annotations
     #TODO надо почитать как вообще комбинируются запросы в текстовое выражение, какие приемы существуют
     #TODO форму преобразования в таблицы см. в описании issue
@@ -167,11 +169,11 @@ class DataExporter():
         """
         #TODO pivotData export to SQL
         if self.settingsReader.check() and multiData.check():
-            self.topWindow.setStatus('Creating SQL database...')
+            self.topWindow.set_status('Creating SQL database...')
             saveDir = self.createDir(prefix='export')
             dbFile=saveDir+'/db.sql'
             conn=sqlalchemy.connect(dbFile)
             multiData.getChannelAndTag('ocul','N').to_sql('ocul', conn, flavor='mysql')
 
-            self.topWindow.setStatus('Database ready. Intervals trimmed and tagged.',color='success')
+            self.topWindow.set_status('Database ready. Intervals trimmed and tagged.', color='success')
             self.copyMeta()

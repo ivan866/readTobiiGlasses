@@ -34,7 +34,7 @@ class AbstractViz():
         :return: 
         """
         #TODO all data channels
-        self.topWindow.setStatus('Plotting...')
+        self.topWindow.set_status('Plotting...')
         ids=data.multiData['gaze']
         ints=self.settingsReader.getIntervals()
         plotNum=0

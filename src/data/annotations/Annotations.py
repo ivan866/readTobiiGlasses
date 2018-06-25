@@ -25,7 +25,7 @@ import praatio
 from praatio import tgio
 
 
-from SettingsReader import SettingsReader
+from SettingsManager import SettingsManager
 
 
 
@@ -62,7 +62,7 @@ def parseAnnotationToDataframe(topWindow, annotData:object, settingsReader:Setti
         elif type(annotData) == praatio.tgio.Textgrid:
             annot=annotData.tierDict[tierName].entryList
         else:
-            topWindow.setStatus('ERROR: Unrecognized annotation type.')
+            topWindow.set_status('ERROR: Unrecognized annotation type.')
             annot=None
 
         #удаляем из названия слоя букву-указатель на id коммуниканта (N,R,C,L,etc.), чтобы в сводных таблицах все соответственные названия были идентичны
@@ -117,7 +117,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
     localG = -9.81523
     for (channel, id) in multiData.genChannelIds(channel='imu'):
         if multiData.hasChannelById('ceph', id):
-            topWindow.setStatus('Working with gyroscope data...')
+            topWindow.set_status('Working with gyroscope data...')
             #исходный вариант - для угловой скорости, интерполированный - для сенсора
             imu = multiData.getChannelAndTag(channel, id)
             gyro = multiData.getChannelAndTag('gyro', id)
@@ -156,7 +156,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
 
             # находим результирующую между тремя ортогональными углами
             #TODO попробовать детекцию без результирующих
-            topWindow.setStatus('Finding result rotation...')
+            topWindow.set_status('Finding result rotation...')
             angVel = gyro[['Gyro X', 'Gyro Z', 'Gyro Y']].as_matrix()
             angVelScalar = []
             for pitch, roll, yaw in angVel:
@@ -169,7 +169,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             # результирующий вектор скорости
             # TODO добавить график скорости головы в меню, и просмотреть его
             # TODO статистика амплитуд, скоростей и длительностей всех движений головы (main sequence)
-            topWindow.setStatus('Finding jolt...')
+            topWindow.set_status('Finding jolt...')
             #topWindow.setStatus('Finding result velocity...')
             vel = np.vstack(([0, 0, 0], np.diff(acc, axis=0)))
             #vel = np.vstack(([0, 0, 0], np.diff(np.vstack(([0, 0, 0],cumtrapz(y=acc, x=imu['TimestampZeroBased'], axis=0))),axis=0)))
@@ -185,8 +185,8 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             # detecting head motion
             #TODO можно refactor в отдельные функции
             state = 'motions'
-            topWindow.setStatus('Filtering ceph motion...')
-            topWindow.setStatus('Rotation component...')
+            topWindow.set_status('Filtering ceph motion...')
+            topWindow.set_status('Rotation component...')
             filter = IVTFilter()
             #TODO как вариант подбирать пороги на основании шума в каждой конкретной записи или даже интервале
             filter.setParameter('min_velocity', 10.0)  # минимальная скорость движения
@@ -195,9 +195,9 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             filter.setParameter('min_motion', 0.150)  # минимальная длительность движения, s
             filter.process(data=gyro[['TimestampZeroBased', 'angVelScalar']])
             result = filter.getResultFiltered(state)
-            topWindow.setStatus('I-VT filter finished, with parameters: ' + filter.printParams() + '. ' + str(result.shape[0]) + ' ' + state + ' found.')
+            topWindow.set_status('I-VT filter finished, with parameters: ' + filter.printParams() + '. ' + str(result.shape[0]) + ' ' + state + ' found.')
 
-            topWindow.setStatus('Jolt component...')
+            topWindow.set_status('Jolt component...')
             filter2 = IVTFilter()
             filter2.setParameter('min_velocity', 0.3)
             filter2.setParameter('noise_level', 0.12)
@@ -205,7 +205,7 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
             filter2.setParameter('min_motion', 0.150)
             filter2.process(data=imu[['TimestampZeroBased', 'velScalar']])
             result2 = filter2.getResultFiltered(state)
-            topWindow.setStatus('I-VT filter finished, with parameters: ' + filter2.printParams() + '. ' + str(result2.shape[0]) + ' ' + state + ' found.')
+            topWindow.set_status('I-VT filter finished, with parameters: ' + filter2.printParams() + '. ' + str(result2.shape[0]) + ' ' + state + ' found.')
 
             # generate .eaf
             #TODO можно сделать refactor в универсальный метод writeEaf
@@ -226,18 +226,20 @@ def imuToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) ->
                 ceph.add_annotation(id_tier=tier2, start=int(row['min'] * 1000), end=int(row['max'] * 1000),
                                     value=str(round(row['mean'], 1)) + ' m/s^3')
             eafFile = saveDir + '/' + os.path.splitext(cephFile)[0] + '-gyro.eaf'
-            topWindow.setStatus('Saving ELAN file ({0}).'.format(eafFile))
+            topWindow.set_status('Saving ELAN file ({0}).'.format(eafFile))
             ceph.to_file(eafFile)
         else:
-            topWindow.setStatus('Cephalic annotation pair not specified! No ELAN file to add tier to.',color='error')
+            topWindow.set_status('Cephalic annotation pair not specified! No ELAN file to add tier to.', color='error')
 
     if written:
         dataExporter.copyMeta()
     else:
-        topWindow.setStatus('Nothing was saved. No gyroscope data!',color='error')
+        topWindow.set_status('Nothing was saved. No gyroscope data!', color='error')
 
 
 
+
+#TODO посмотреть как в Pyper сделан вывод statusbar в системную консоль
 def callPyper(topWindow, multiData, settingsReader:object,dataExporter:object, args:list) -> None:
     """
 
@@ -249,7 +251,7 @@ def callPyper(topWindow, multiData, settingsReader:object,dataExporter:object, a
     :return:
     """
     #performing a dry run to bypass Pyper's question about overwriting the dir
-    topWindow.setStatus('WARNING: this operation can take several hours for each record processed, depending on your machine speed.')
+    topWindow.set_status('WARNING: this operation can take several hours for each record processed, depending on your machine speed.')
     saveDir=dataExporter.createDir(prefix=args[4],dryRun=True)
     cmd=['g:/ProgramData/Anaconda3Win7/python.exe',
          'g:/projects/multidiscourse/scripts/motionTracking/Pyper/Pyper-python3/src/tracking_cli.py',
@@ -267,7 +269,7 @@ def callPyper(topWindow, multiData, settingsReader:object,dataExporter:object, a
          '--prefix',os.path.basename(saveDir)]
     output = subprocess.run(cmd, shell=True)
 
-    topWindow.setStatus('Motion detection cycle finished. Check .eaf file.',color='success')
+    topWindow.set_status('Motion detection cycle finished. Check .eaf file.', color='success')
     dataExporter.copyMeta()
 
     #TODO all files of type
@@ -294,12 +296,12 @@ def pyperToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) 
         if multiData.hasChannelById('manu', id):
             filePath = settingsReader.getPathAttrById('pyper', id, absolute=True)
             fileExt = os.path.splitext(filePath)[1]
-            topWindow.setStatus('Reading Pyper output (' + os.path.basename(filePath) + ')...')
+            topWindow.set_status('Reading Pyper output (' + os.path.basename(filePath) + ')...')
             if fileExt.lower() == '.csv':
                 pyperData = pd.read_csv(filePath, header=None, sep=',', decimal='.', encoding='utf-8',
                                         names=['frame','x','y'], dtype={'frame':int,'x':float,'y':float})
 
-                topWindow.setStatus('Finding hands distance (per frame)...')
+                topWindow.set_status('Finding hands distance (per frame)...')
                 dist = []
                 diffed=np.vstack(([0, 0, 0], np.diff(pyperData,axis=0)))
                 pyperData[['x','y']]=diffed[:,1:3]
@@ -311,7 +313,7 @@ def pyperToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) 
                 # detecting manu motion
                 #FIXME сделать refactor этого блока, вынести их все в одну функцию
                 state = 'motions'
-                topWindow.setStatus('Filtering manu motion...')
+                topWindow.set_status('Filtering manu motion...')
                 filter = IVTFilter()
                 filter.setParameter('min_velocity', 0.5)    #в пикселях
                 filter.setParameter('noise_level', 0.15)    #в пикселях
@@ -319,7 +321,7 @@ def pyperToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) 
                 filter.setParameter('min_motion', 5)        #в кадрах
                 filter.process(data=pyperData[['frame', 'dist']])
                 result = filter.getResultFiltered(state)
-                topWindow.setStatus('I-VT filter finished, with parameters: ' + filter.printParams() + '. ' + str(
+                topWindow.set_status('I-VT filter finished, with parameters: ' + filter.printParams() + '. ' + str(
                     result.shape[0]) + ' ' + state + ' found.')
 
                 # generate .eaf
@@ -336,17 +338,17 @@ def pyperToEaf(topWindow, multiData, settingsReader:object,dataExporter:object) 
                     manu.add_annotation(id_tier=tier, start=int(row['min'] / topWindow.VIDEO_FRAMERATE *1000), end=int(row['max'] / topWindow.VIDEO_FRAMERATE *1000),
                                         value=str(int(round(row['mean']))) + ' ppf')
                 eafFile = saveDir + '/' + os.path.splitext(manuFile)[0] + '-pyper_converted.eaf'
-                topWindow.setStatus('Saving ELAN file ({0}).'.format(eafFile))
+                topWindow.set_status('Saving ELAN file ({0}).'.format(eafFile))
                 manu.to_file(eafFile)
             else:
-                topWindow.setStatus('Unknown file format.')
+                topWindow.set_status('Unknown file format.')
         else:
-            topWindow.setStatus('Manual annotation pair not specified! No ELAN file to add tier to.',color='error')
+            topWindow.set_status('Manual annotation pair not specified! No ELAN file to add tier to.', color='error')
 
     if written:
         dataExporter.copyMeta()
     else:
-        topWindow.setStatus('Nothing was saved. No manu data!',color='error')
+        topWindow.set_status('Nothing was saved. No manu data!', color='error')
 
 
 

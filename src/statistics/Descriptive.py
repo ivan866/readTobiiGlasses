@@ -22,12 +22,12 @@ import statsmodels
 
 
 
-from SettingsReader import SettingsReader
+from SettingsManager import SettingsManager
 
 
 
 
-#FIXME probably class not needed, only static funcitons
+#FIXME probably class not needed, only static functions
 class Stats():
 
     """Statistical methods for multidiscourse data."""
@@ -43,7 +43,12 @@ class Stats():
 
 
     #FIXME interval sort order must be always unsorted
-    def groupbyListAndDescribe(self,data:object,groupby:object,on:str)->DataFrame:
+    #TODO must refactor all describe logic to separate method
+    #TODO can factor out returned dataframes from multidata to special inherited and extended class, e.g. DataChannel
+    #  который будет иметь hooks на методы обсчета статистики и возвращать нужные groupedby таблицы
+    #  это позволит делать method chaining через точку
+    #TODO all channels go to single .xls in different sheets
+    def groupbyListAndDescribe(self, data:object, groupby:object, on:str) -> DataFrame:
         """Slices data on groupby, aggregates on column and adds some descriptive columns.
 
         :param data: Dataframe to slice.
@@ -124,17 +129,17 @@ class Stats():
         :return:
         """
         try:
-            saveDir=dataExporter.createDir(prefix='stats', serial=serial, savePath=savePath)
+            saveDir=dataExporter.createDir(prefix='statistics', serial=serial, savePath=savePath)
         except ValueError:
-            self.topWindow.reportError()
+            self.topWindow.report_error()
             return None
 
         #статистика
-        self.topWindow.logger.debug('descriptive stats')
+        self.topWindow.logger.debug('descriptive statistics')
         self.topWindow.logger.debug('iterating through data channels...')
-        self.topWindow.setStatus('Gathering statistics... please wait.')
+        self.topWindow.set_status('Gathering statistics... please wait.')
         if self.settingsReader.settings.find("interval[@id='']") is not None:
-            self.topWindow.setStatus('WARNING: Unnamed intervals skipped!')
+            self.topWindow.set_status('WARNING: Unnamed intervals skipped!')
         statsType='descriptive'
 
 
@@ -145,7 +150,7 @@ class Stats():
             #TODO need refactor copies of this block
             channelZeroName=self.settingsReader.substGazeRelatedChannels(channel)
             if not messageShown:
-                self.topWindow.setStatus('Now doing {0} channel.'.format(channelZeroName))
+                self.topWindow.set_status('Now doing {0} channel.'.format(channelZeroName))
                 messageShown=True
 
             try:
@@ -164,10 +169,10 @@ class Stats():
                           sheets=['Fixations','Fixations','Saccades','Saccades','EyesNotFounds','EyesNotFounds'],
                           serial=serial)
             except AttributeError:
-                self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
+                self.topWindow.set_status('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel, id))
             except:
-                self.topWindow.reportError()
-                self.topWindow.setStatus('Skipping {0} channel for id {1}.'.format(channel,id),color='error')
+                self.topWindow.report_error()
+                self.topWindow.set_status('Skipping {0} channel for id {1}.'.format(channel, id), color='error')
 
 
 
@@ -177,7 +182,7 @@ class Stats():
         messageShown=False
         for (channel, id) in multiData.genChannelIds(channel='voc'):
             if not messageShown:
-                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                self.topWindow.set_status('Now doing {0} channel.'.format(channel))
                 messageShown = True
             try:
                 data = multiData.getChannelAndTag(channel, id, format='dataframe')
@@ -194,15 +199,15 @@ class Stats():
                           serial=serial)
             #FIXME large duplicated try-except blocks, need refactor to method
             except AttributeError:
-                self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel, id))
+                self.topWindow.set_status('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel, id))
             except KeyError:
-                self.topWindow.reportError()
-                self.topWindow.setStatus('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel,id),color='error')
+                self.topWindow.report_error()
+                self.topWindow.set_status('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel, id), color='error')
                 #FIXME assumes file is .eaf without checking it
-                self.topWindow.setStatus('Try searching for mistakes, typos and inconsistent naming schemes in .eaf.',color='error')
+                self.topWindow.set_status('Try searching for mistakes, typos and inconsistent naming schemes in .eaf.', color='error')
             except:
-                self.topWindow.reportError()
-                self.topWindow.setStatus('Skipping {0} channel for id {1}.'.format(channel, id),color='error')
+                self.topWindow.report_error()
+                self.topWindow.set_status('Skipping {0} channel for id {1}.'.format(channel, id), color='error')
 
 
 
@@ -212,10 +217,15 @@ class Stats():
         messageShown=False
         for (channel, id) in multiData.genChannelIds(channel='manu'):
             if not messageShown:
-                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                self.topWindow.set_status('Now doing {0} channel.'.format(channel))
                 messageShown = True
             try:
                 data = multiData.getChannelAndTag(channel, id, format='dataframe')
+                # для расчета игнорируя уникальность индексов в нужном столбце
+                data['mGesture'].replace(to_replace='(^.*mGe)\d+$', value='\\1', regex=True, inplace=True)
+                data['mAdaptor'].replace(to_replace='(^.*mAd)\d+$', value='\\1', regex=True, inplace=True)
+                data['mAdType'].replace(to_replace='.*', value='AnyAdType', regex=True, inplace=True)
+                data['mAllGeStroke'].replace(to_replace='.*', value='AnyGeStroke', regex=True, inplace=True)
                 #TODO проверить можно ли отбросить продублированные значения если не была снята галочка Repeat values of annotations
                 #self.topWindow.setStatus('WARNING: only \'mGesture\' tier will be considered in current implementation.')
                 #data.dropna(subset=(['mGesture']), inplace=True)
@@ -223,44 +233,49 @@ class Stats():
                 file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channel, id),statsType)
                 self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
                                 self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
-                                self.groupbyListAndDescribe(data, 'mLtMtType', 'Duration'),
-                                self.groupbyListAndDescribe(data, 'mRtMtType', 'Duration'),
-                                self.groupbyListAndDescribe(data, 'mLtStType', 'Duration'),
-                                self.groupbyListAndDescribe(data, 'mRtStType', 'Duration'),
-                                self.groupbyListAndDescribe(data, 'mGeHandedness', 'Duration'),
-                                self.groupbyListAndDescribe(data, 'mGeStructure', 'Duration'),
-                                self.groupbyListAndDescribe(data, 'mGeTags', 'Duration'),
-                                self.groupbyListAndDescribe(data, 'mGeFunction', 'Duration'),
+                                #self.groupbyListAndDescribe(data, 'mLtMtType', 'Duration'),
+                                #self.groupbyListAndDescribe(data, 'mRtMtType', 'Duration'),
+                                #self.groupbyListAndDescribe(data, 'mLtStType', 'Duration'),
+                                #self.groupbyListAndDescribe(data, 'mRtStType', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mGesture', 'Duration'),
+                                #self.groupbyListAndDescribe(data, 'mGeHandedness', 'Duration'),
+                                #self.groupbyListAndDescribe(data, 'mGeStructure', 'Duration'),
+                                #self.groupbyListAndDescribe(data, 'mGeTags', 'Duration'),
+                                #self.groupbyListAndDescribe(data, 'mGeFunction', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mAdaptor', 'Duration'),
                                 self.groupbyListAndDescribe(data, 'mAdType', 'Duration'),
                                 #self.groupbyListAndDescribe(data, ['mAdaptor', 'mAdType'], 'Duration'),
                                 self.groupbyListAndDescribe(data, 'mLtGeStroke', 'Duration'),
                                 self.groupbyListAndDescribe(data, 'mRtGeStroke', 'Duration'),
                                 self.groupbyListAndDescribe(data, 'mAllGeStroke', 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'mLtMtType'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'mRtMtType'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'mLtStType'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'mRtStType'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'mGeStructure'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'mGeTags'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'mGeFunction'], 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mLtMtType'], 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mRtMtType'], 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mLtStType'], 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mRtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mGesture'], 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness'], 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mGeStructure'], 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mGeTags'], 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mGeFunction'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mAdaptor'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'mAdType'], 'Duration'),
-								#self.groupbyListAndDescribe(data, ['Interval', 'mAdaptor', 'mAdType'], 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mAdaptor', 'mAdType'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'mLtGeStroke'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'mRtGeStroke'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'mAllGeStroke'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'mLtGeStroke', 'mRtGeStroke', 'mAllGeStroke'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness','mGeStructure','mGeTags','mGeFunction', 'mAllGeStroke'], 'Duration')],
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mLtGeStroke', 'mRtGeStroke', 'mAllGeStroke'], 'Duration'),
+                                #self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness','mGeStructure','mGeTags','mGeFunction'], 'Duration')
+                    ],
                           serial=serial)
             except AttributeError:
-                self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
+                self.topWindow.set_status('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel, id))
             except KeyError:
-                self.topWindow.reportError()
-                self.topWindow.setStatus('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel,id),color='error')
-                self.topWindow.setStatus('Try searching for mistakes, typos and inconsistent naming schemes in .eaf.',color='error')
+                self.topWindow.report_error()
+                self.topWindow.set_status('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel, id), color='error')
+                self.topWindow.set_status('Try searching for mistakes, typos and inconsistent naming schemes in .eaf.', color='error')
             except:
-                self.topWindow.reportError()
-                self.topWindow.setStatus('Skipping {0} channel for id {1}.'.format(channel,id),color='error')
+                self.topWindow.report_error()
+                self.topWindow.set_status('Skipping {0} channel for id {1}.'.format(channel, id), color='error')
 
 
 
@@ -269,7 +284,7 @@ class Stats():
         messageShown=False
         for (channel, id) in multiData.genChannelIds(channel='ceph'):
             if not messageShown:
-                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                self.topWindow.set_status('Now doing {0} channel.'.format(channel))
                 messageShown = True
             data = multiData.getChannelAndTag(channel, id, format='dataframe')
 
@@ -285,14 +300,14 @@ class Stats():
                                 self.groupbyListAndDescribe(data, ['Interval', 'cMoveType', 'cTags'], 'Duration')],
                           serial=serial)
             except AttributeError:
-                self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
+                self.topWindow.set_status('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel, id))
             except KeyError:
-                self.topWindow.reportError()
-                self.topWindow.setStatus('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel,id),color='error')
-                self.topWindow.setStatus('Try searching for mistakes, typos and inconsistent naming schemes .eaf.',color='error')
+                self.topWindow.report_error()
+                self.topWindow.set_status('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel, id), color='error')
+                self.topWindow.set_status('Try searching for mistakes, typos and inconsistent naming schemes .eaf.', color='error')
             except:
-                self.topWindow.reportError()
-                self.topWindow.setStatus('Skipping {0} channel for id {1}.'.format(channel,id),color='error')
+                self.topWindow.report_error()
+                self.topWindow.set_status('Skipping {0} channel for id {1}.'.format(channel, id), color='error')
 
 
 
@@ -300,7 +315,7 @@ class Stats():
         messageShown=False
         for (channel, id) in multiData.genChannelIds(channel='ocul'):
             if not messageShown:
-                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                self.topWindow.set_status('Now doing {0} channel.'.format(channel))
                 messageShown = True
 
             try:
@@ -319,20 +334,20 @@ class Stats():
                                 self.groupbyListAndDescribe(data,['Interval', 'E_Interlocutor', data['E_Localization'].str.lower()],'Duration')],
                           serial=serial)
             except AttributeError:
-                self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
+                self.topWindow.set_status('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel, id))
             except KeyError:
-                self.topWindow.reportError()
-                self.topWindow.setStatus('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel,id),color='error')
-                self.topWindow.setStatus('Try searching for mistakes, typos and inconsistent naming schemes in .eaf.',color='error')
+                self.topWindow.report_error()
+                self.topWindow.set_status('ERROR: Probably unknown tier name. Skipping {0} channel for id {1}.'.format(channel, id), color='error')
+                self.topWindow.set_status('Try searching for mistakes, typos and inconsistent naming schemes in .eaf.', color='error')
             except:
-                self.topWindow.reportError()
-                self.topWindow.setStatus('Skipping {0} channel for id {1}.'.format(channel,id),color='error')
+                self.topWindow.report_error()
+                self.topWindow.set_status('Skipping {0} channel for id {1}.'.format(channel, id), color='error')
 
 
 
 
 
-        self.topWindow.setStatus('Descriptive statistic reports saved to {0}.'.format(saveDir),color='success')
+        self.topWindow.set_status('Descriptive statistic reports saved to {0}.'.format(saveDir), color='success')
         dataExporter.copyMeta()
 
 
@@ -393,6 +408,16 @@ class Stats():
 
 
 
+
+    #TODO subplotting
+    #TODO refactor all plot types to viz/methods
+    #  это позволит и видоизменять язык надписей без труда, и цвета
+    #TODO export plot data to standard format
+    #TODO bokeh html interactive output
+    #  tools=, tooltips=
+    #  figure.line(, line_color="#FF0000", line_width=8, alpha=0.7, legend="PDF")
+    #  figure.legend.location='center_right'
+    #  figure.legend.background_fill_color='darkgrey'
     def ANOVA_stats(self, multiData:object, pivotData:object, dataExporter:object)->None:
         """Analysis of variance on distribution data.
 
@@ -403,46 +428,62 @@ class Stats():
         :param dataExporter:
         :return:
         """
-        self.topWindow.setStatus('ANOVA requested.')
-        self.topWindow.setStatus('Standardizing to z-scores.')
-        #проверить есть ли разница в величине f-теста с и без z-score
-        zdata1=scipy.stats.zscore(data1, axis=0)
+        self.topWindow.set_status('ANOVA requested.')
+        #self.topWindow.setStatus('Standardizing to z-scores.')
+        #zdata1=scipy.stats.zscore(data1, axis=0)
 
-        self.topWindow.setStatus('Sample size and distribution requirements.')
+        self.topWindow.set_status('Sample size and distribution requirements.')
         #statsmodels.stats.power.FTestAnovaPower.power
         #number of modes ??function
-        kernel1=scipy.stats.gaussian_kde(data1, bw_method='scott')
-        kernel2=scipy.stats.gaussian_kde(data2, bw_method='scott')
-        xs=numpy.linspace(min(data1),max(data1),100)
-        plt.plot(xs,kernel1(xs))
-        plt.plot(xs,kernel2(xs))
+        #проверка сбалансированности измерений
+        # kernel1=scipy.stats.gaussian_kde(data1, bw_method='scott')
+        # kernel2=scipy.stats.gaussian_kde(data2, bw_method='scott')
+        # xs=numpy.linspace(min(data1),max(data1),100)
+        # plt.plot(xs,kernel1(xs))
+        # plt.plot(xs,kernel2(xs))
+        plt.title('Плотность распределения')
+        plt.xlabel('Длительность (с)')
+        plt.ylabel('Плотность')
+        #plt.axes().set_major_locator(plt.MaxNLocator(10))
+        #plt.minorticks_on()
+        plt.hist(data1, bins=50, density=True, cumulative=False, orientation='vertical', rwidth=0.5, color=None)    #bins='auto'
+        #plt.hist(data2, bins=50, density=True, cumulative=False, orientation='vertical')
+        #sns.kdeplot(norm_distr_for_data.pdf(xs), bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=False)  #kdeplot(data1, data2)
+        plt.plot(xs, plt.ylim()[1]*norm_distr_for_data.pdf(xs))
+        sns.kdeplot(data1, bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=False)  #kdeplot(data1, data2)
+        sns.kdeplot(data1, bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=True)  #kdeplot(data1, data2)
+        #sns.kdeplot(data2, bw=0.15)
+        #plt.grid()
 
-        #scipy.stats.norm.rvs(size=100)
-        sns.kdeplot(data1, bw=0.5, cumulative=True)  #kdeplot(data1, data2)
-        sns.kdeplot(data2, bw=0.5)
         # Q-Q plot
         #plt.scatter()
-        scipy.stats.kstest(zdata1, 'norm')
-        #scipy.stats.levene()
+        #scipy.stats.norm.rvs(size=100)
+        loc, scale = scipy.stats.norm.fit(data1)
+        norm_distr_for_data=scipy.stats.norm(loc=loc, scale=scale)
+        scipy.stats.kstest(data1, norm_distr_for_data.cdf)
+        scipy.stats.levene(zdata1,zdata2)
 
-        self.topWindow.setStatus('F-test:')
+        self.topWindow.set_status('F-test:')
         sample1=multiData.getChannelAndTag('ocul','N', format='dataframe')
         data1=sample1.loc[sample1['Interval']=='01_tell','Duration']
         sample2=multiData.getChannelAndTag('ocul','R', format='dataframe')
         data2=sample2.loc[sample2['Interval']=='01_tell','Duration']
-        scipy.stats.f_oneway(data1,data2)
+        scipy.stats.f_oneway(zdata1,zdata2)
 
 
         #effect size
         #scheffe test
 
-        self.topWindow.setStatus('Distributional plots...')
+        self.topWindow.set_status('Distributional plots...')
         #plt.bar()
+        #with sns.axes_style('darkgrid'):
+        #    sns.barplot(, estimator=sum, hue='')
         #scipy.stats.binned_statistic(, statistic='count', bins=10)
         #data1.hist(bins=10)
         plt.hist(data1, bins='auto', density=False, cumulative=True, orientation='vertical')
         #scipy.stats.cumfreq(, numbins=10)
         #plt.boxplot(data2, notch=True, sym='.', vert=True)   #labels=[]
+        #sns.swarmplot()
         #dataframe.boxplot(,by=,figsize=(8,6))
         #Q-Q plot можно для разных переменных, чтобы видеть профиль и сравнивать
         #plt.errorbar()
@@ -471,7 +512,7 @@ class Stats():
 
 
     def saveCSV(self,file:str,data:list)->None:
-        """Writes stats to many csv, one for each table.
+        """Writes statistics to many csv, one for each table.
 
         :param file:
         :param data:
@@ -524,6 +565,6 @@ class Stats():
                     #st.to_excel(writer, startrow=startrow)
                     startrow = startrow + df.shape[0] + 3
                 else:
-                    self.topWindow.setStatus('WARNING: Empty table encountered in file {0}. Omitting from report.'.format(os.path.basename(file)))
+                    self.topWindow.set_status('WARNING: Empty table encountered in file {0}. Omitting from report.'.format(os.path.basename(file)))
 
             writer.save()
