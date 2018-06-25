@@ -12,13 +12,42 @@ from tkinter import *
 import matplotlib
 import matplotlib.pylab as pylab
 matplotlib.rcParams['backend'] = "TkAgg"
-matplotlib.style.use('classic')
-params = {'legend.fontsize': 'xx-small',
-          'figure.figsize': (4,4),
-          'axes.labelsize': 'small',
+matplotlib.style.use('bmh') #bmh, ggplot, seaborn
+params = {
+          #'font.family': 'arial',
+          'figure.figsize': (8, 6),
+          #'figure.dpi': 150,
           'axes.titlesize': 'small',
-          'xtick.labelsize':'x-small',
-          'ytick.labelsize':'x-small'}
+          'axes.labelsize': 'small',
+          #'axes.facecolor': '#E8DDCB',
+          'axes.grid': True,
+          'axes.grid.which': 'major',    #both, major
+          'axes.axisbelow': True,    #line, False
+          #'grid.linewidth': 0.8,    #line, False
+          #'grid.alpha': 0.8,    #line, False
+          'xtick.labelsize': 'x-small',
+          'ytick.labelsize': 'x-small',
+          'xtick.direction': 'out',
+          'ytick.direction': 'out',
+          #'xtick.top': True,
+          'ytick.left': True,
+          'xtick.bottom': True,
+          #'ytick.right': True,
+          #'xtick.minor.top': True,
+          'ytick.minor.left': True,
+          'xtick.minor.bottom': True,
+          #'ytick.minor.right': True,
+          'xtick.minor.visible': True,
+          'ytick.minor.visible': True,
+          'legend.fontsize': 'xx-small',
+          'legend.facecolor': 'grey',
+          'hist.bins': 20,
+          'boxplot.notch': True,
+          'boxplot.showmeans': True,
+          'boxplot.showcaps': True,
+          'boxplot.meanline': True,
+          'errorbar.capsize': 9
+          }
 pylab.rcParams.update(params)
 
 
@@ -37,6 +66,8 @@ from viz.plots.SpatialPlot import SpatialPlot
 from viz.plots.CombiPlot import CombiPlot
 from viz.distribution.Spectrogram import Spectrogram
 from viz.video.AviSynthPlayer import AviSynthPlayer
+
+
 
 
 
@@ -140,6 +171,8 @@ class ReadTobiiGlasses():
         exportMenu.add_command(label="Fixations/saccades to CSV", command=lambda: self.dataExporter.exportFixations(self.multiData,'csv'))
         exportMenu.add_command(label="Fixations/saccades to Excel", command=lambda: self.dataExporter.exportFixations(self.multiData,'xls'))
         exportMenu.add_command(label="Gyroscope/accelerometer to CSV", command=lambda: self.dataExporter.exportGyro(self.multiData))
+        exportMenu.add_command(label="All tables to CSV", command=lambda: self.dataExporter.exportCSV(self.multiData))
+        exportMenu.add_command(label="All tables to Excel", command=lambda: self.dataExporter.exportCSV(self.multiData, format='xlsx'))
         exportMenu.add_command(label="All tables to SQL", command=lambda: self.dataExporter.exportSQL(self.multiData))
         dataMenu.add_cascade(label="Export", menu=exportMenu)
         self.rootMenu.add_cascade(label="Data", menu=dataMenu)
@@ -217,6 +250,7 @@ class ReadTobiiGlasses():
         manualsMenu = Menu(helpMenu, tearoff=0)
         manualsMenu.add_command(label="Tobii coordinate systems", command=lambda: self.gotoWeb('coordSys'))
         manualsMenu.add_command(label="Tobii gyroscope data format", command=lambda: self.gotoWeb('glasses2API'))
+        manualsMenu.add_command(label="JAI Go Camera manuals", command=lambda: self.gotoWeb('jaiCameras'))
         helpMenu.add_cascade(label="Manuals", menu=manualsMenu)
         helpMenu.add_command(label="FAQ", command=lambda: self.gotoWeb('FAQ'))
         helpMenu.add_command(label="Wiki", command=lambda: self.gotoWeb('wiki'))
@@ -311,6 +345,8 @@ class ReadTobiiGlasses():
             webbrowser.open('http://tobiipro.com/product-listing/tobii-pro-glasses-2-sdk/')
         elif page=='coordSys':
             webbrowser.open('http://developer.tobiipro.com/commonconcepts.html')
+        elif page=='jaiCameras':
+            webbrowser.open('https://stemmer-imaging.co.uk/en/products/series/jai-go/')
         else:
             self.setStatus('Unknown URL.')
 

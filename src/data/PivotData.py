@@ -114,7 +114,7 @@ class PivotData:
             file = '{0}/{1}_pivot.xls'.format(settingsReader.batchDir, type)
             if type == 'gaze':
                 # FIXME sheets list from global enum
-                sheets = ['Fixations', 'Fixations', 'Saccades', 'Saccades', 'EyesNotFounds', 'EyesNotFounds']
+                sheets = ['Fixations', 'Fixations', 'Saccades', 'Saccades', 'EyesNotFounds', 'EyesNotFounds', 'Unclassifieds', 'Unclassifieds']
             else:
                 sheets = []
             self.topWindow.logger.debug('pivoted, save incrementally')

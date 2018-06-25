@@ -26,21 +26,6 @@ class DataReader():
 
 
 
-    def determineSkiprows(self,file:str,commentStr:str)->int:
-        """
-        
-        :param file: 
-        :param commentStr: 
-        :return: 
-        """
-        with open(file,encoding='UTF-8') as f:
-            lineNum = 0
-            line = f.readline()
-            while line.startswith(commentStr):
-                lineNum = lineNum + 1
-                line = f.readline()
-            return lineNum
-
 
     #multiDatas are not combined in batch mode, instead, they are processed sequentially - for memory efficiency, and then only (csv) tables are pivoted
     def read(self, settingsReader, multiData,serial:bool=False) -> None:
@@ -82,6 +67,8 @@ class DataReader():
         :param multiData: 
         :return:
         """
+        recordId=settingsReader.getRecordId()
+
         for fileElem in settingsReader.genTypeFile('gaze'):
             filePath = settingsReader.getPathAttrById('gaze', fileElem.get('id'), absolute=True)
             fileExt = os.path.splitext(filePath)[1]
@@ -91,7 +78,7 @@ class DataReader():
                 # узнаем какие столбцы присутствуют
                 headers = pd.read_table(filePath, nrows=1, encoding='UTF-16')
                 availColumns = [i for i in list(headers.columns) if re.match('Recording timestamp|Gaze point|Gaze 3D position|Gaze direction|Pupil diameter|Eye movement type|Gaze event duration|Fixation point|Gyro|Accelerometer',i)]
-                multiData.setNode('availColumns',fileElem.get('id'),availColumns)
+                multiData.setNode('availColumns',fileElem.get('id'),availColumns, recordId)
                 gazeData = pd.read_table(filePath, decimal=",", encoding='UTF-16',
                                              # ==============================================================================
                                              # numpy не поддерживает столбцы типа integer в которых есть NA
@@ -128,7 +115,7 @@ class DataReader():
                     gyro.dropna(subset=(['Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']), how='all', inplace=True)
                     # если остались еще пустые ячейки в начале записи
                     gyro.fillna(value=0,inplace=True)
-                    multiData.setNode('imu',fileElem.get('id'),gyro)
+                    multiData.setNode('imu',fileElem.get('id'),gyro, recordId)
 
                     #FIXME doubled data
                     #gyro/accel
@@ -137,8 +124,8 @@ class DataReader():
                     # убираем пустые строки, но без учета столбца времени
                     gyro.dropna(subset=(['Gyro X', 'Gyro Y', 'Gyro Z']), how='all', inplace=True)
                     accel.dropna(subset=(['Accelerometer X', 'Accelerometer Y', 'Accelerometer Z']), how='all', inplace=True)
-                    multiData.setNode('gyro', fileElem.get('id'), gyro)
-                    multiData.setNode('accel',fileElem.get('id'), accel)
+                    multiData.setNode('gyro', fileElem.get('id'), gyro, recordId)
+                    multiData.setNode('accel',fileElem.get('id'), accel, recordId)
 
                     # гироскоп в основных данных больше не нужен
                     gazeData.drop(['Gyro X', 'Gyro Y', 'Gyro Z', 'Accelerometer X', 'Accelerometer Y', 'Accelerometer Z'], axis=1, inplace=True)
@@ -163,7 +150,7 @@ class DataReader():
                     fixations.drop_duplicates(fixations.columns[range(1, fixations.shape[1])], inplace=True)
                     timeReadable = pd.to_datetime(fixations['Recording timestamp'], unit='s')
                     fixations.insert(1, 'Timecode', timeReadable.dt.strftime('%M:%S.%f'))
-                    multiData.setNode('fixations',fileElem.get('id'),fixations)
+                    multiData.setNode('fixations',fileElem.get('id'),fixations, recordId)
 
                     # теперь саккады
                     # при частоте 50 Гц координаты начала и конца саккад не достоверны
@@ -194,7 +181,7 @@ class DataReader():
                     #                    'End gaze point X','End gaze point Y']]
                     timeReadable=pd.to_datetime(saccades['Recording timestamp'], unit='s')
                     saccades.insert(1,'Timecode',timeReadable.dt.strftime('%M:%S.%f'))
-                    multiData.setNode('saccades',fileElem.get('id'),saccades)
+                    multiData.setNode('saccades',fileElem.get('id'),saccades, recordId)
 
 
                     # участки потерянного контакта
@@ -202,7 +189,7 @@ class DataReader():
                                                                                                    'Gaze event duration',
                                                                                                    'Eye movement type index']]
                     eyesNotFounds.drop_duplicates(eyesNotFounds.columns[range(1, eyesNotFounds.shape[1])], inplace=True)
-                    multiData.setNode('eyesNotFounds',fileElem.get('id'),eyesNotFounds)
+                    multiData.setNode('eyesNotFounds',fileElem.get('id'),eyesNotFounds, recordId)
 
                     # неизвестные события
                     unclassifieds = gazeData.loc[gazeData['Eye movement type'] == 'Unclassified'][['Recording timestamp',
@@ -211,7 +198,7 @@ class DataReader():
                                                                                                    'Gaze event duration',
                                                                                                    'Eye movement type index']]
                     unclassifieds.drop_duplicates(unclassifieds.columns[range(1, unclassifieds.shape[1])], inplace=True)
-                    multiData.setNode('unclassifieds',fileElem.get('id'),unclassifieds)
+                    multiData.setNode('unclassifieds',fileElem.get('id'),unclassifieds, recordId)
 
 
                     # события в основных данных больше не нужны
@@ -219,7 +206,7 @@ class DataReader():
                                    'Fixation point X', 'Fixation point Y'],
                                    axis=1, inplace=True)
 
-                multiData.setNode('gaze',fileElem.get('id'),gazeData)
+                multiData.setNode('gaze',fileElem.get('id'),gazeData, recordId)
             #TODO
             elif fileExt.lower() == '.json':
                 self.topWindow.setStatus('WARNING: parsing .json files not implemented.')
@@ -260,7 +247,7 @@ class DataReader():
             else:
                 self.topWindow.setStatus('ERROR: Unknown file format.')
 
-            multiData.setNode('voc', fileElem.get('id'), vocData)
+            multiData.setNode('voc', fileElem.get('id'), vocData, settingsReader.getRecordId())
 
 
 
@@ -292,7 +279,7 @@ class DataReader():
             else:
                 self.topWindow.setStatus('ERROR: Unknown file format.')
 
-            multiData.setNode('manu', fileElem.get('id'), manuData)
+            multiData.setNode('manu', fileElem.get('id'), manuData, settingsReader.getRecordId())
 
 
 
@@ -313,7 +300,7 @@ class DataReader():
             else:
                 self.topWindow.setStatus('ERROR: Unknown file format.')
 
-            multiData.setNode('ceph', fileElem.get('id'), cephData)
+            multiData.setNode('ceph', fileElem.get('id'), cephData, settingsReader.getRecordId())
 
 
 
@@ -346,4 +333,22 @@ class DataReader():
             else:
                 self.topWindow.setStatus('ERROR: Unknown file format.')
 
-            multiData.setNode('ocul', fileElem.get('id'), oculData)
+            multiData.setNode('ocul', fileElem.get('id'), oculData, settingsReader.getRecordId())
+
+
+
+
+    def determineSkiprows(self, file: str, commentStr: str) -> int:
+        """
+
+        :param file:
+        :param commentStr:
+        :return:
+        """
+        with open(file, encoding='UTF-8') as f:
+            lineNum = 0
+            line = f.readline()
+            while line.startswith(commentStr):
+                lineNum = lineNum + 1
+                line = f.readline()
+            return lineNum

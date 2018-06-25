@@ -4,7 +4,9 @@ import xml.etree.ElementTree as ET
 
 
 
+import pandas
 from pandas import DataFrame
+#import pandas.io.excel.xlsx.writer
 
 import sqlalchemy
 
@@ -71,6 +73,7 @@ class DataExporter():
 
 
 
+    #method may be superseded by exportCSV
     def exportFixations(self,multiData,format:str) -> None:
         """Writes fixations and saccades to files.
         
@@ -80,6 +83,7 @@ class DataExporter():
 		#TODO merge speaking and listening mode for each participant with fixation status (Kendon stats)
         self.topWindow.logger.debug('export fixations')
         if self.settingsReader.check() and multiData.check():
+            self.topWindow.setStatus('WARNING: This method is deprecated and not maintained. Use All tables to CSV/Excel instead.')
             written = False
             #TODO change to iterator pattern using generators
             for file in self.settingsReader.getTypes('gaze'):
@@ -90,14 +94,20 @@ class DataExporter():
                     written = True
                     fixFile = os.path.splitext(file.get('path'))[0] + '_fixations.' + format
                     sacFile = os.path.splitext(file.get('path'))[0] + '_saccades.' + format
+                    enfFile = os.path.splitext(file.get('path'))[0] + '_eyesNotFounds.' + format
+                    uncFile = os.path.splitext(file.get('path'))[0] + '_unclassifieds.' + format
                     #dropping human-unperceptable columns
                     #FIXME the function knows the column names, this is code smell!
                     if format == 'csv':
                         multiData.getChannelAndTag('fixations',id).drop(columns=self.colsUnperceptable).to_csv(saveDir + '/' + fixFile, sep='\t', index=False)
                         multiData.getChannelAndTag('saccades',id).drop(columns=self.colsUnperceptable).to_csv(saveDir + '/' + sacFile, sep='\t', index=False)
+                        multiData.getChannelAndTag('eyesNotFounds',id).drop(columns=self.colsUnperceptable).to_csv(saveDir + '/' + enfFile, sep='\t', index=False)
+                        multiData.getChannelAndTag('unclassifieds',id).drop(columns=self.colsUnperceptable).to_csv(saveDir + '/' + uncFile, sep='\t', index=False)
                     elif format == 'xls':
                         multiData.getChannelAndTag('fixations', id).drop(columns=self.colsUnperceptable).to_excel(saveDir + '/' + fixFile, index=False)
                         multiData.getChannelAndTag('saccades', id).drop(columns=self.colsUnperceptable).to_excel(saveDir + '/' + sacFile, index=False)
+                        multiData.getChannelAndTag('eyesNotFounds', id).drop(columns=self.colsUnperceptable).to_excel(saveDir + '/' + enfFile, index=False)
+                        multiData.getChannelAndTag('unclassifieds', id).drop(columns=self.colsUnperceptable).to_excel(saveDir + '/' + uncFile, index=False)
             if written:
                 self.topWindow.setStatus('Fixations and saccades saved to files. Intervals tagged.',color='success')
                 self.copyMeta()
@@ -107,11 +117,13 @@ class DataExporter():
 
 
 
+    # method may be superseded by exportCSV
     def exportGyro(self,multiData) -> None:
         """Writes gyroscope and accelerometer data to files. Generates .eaf tiers."""
 
         self.topWindow.logger.debug('export gyro')
         if self.settingsReader.check() and multiData.check():
+            self.topWindow.setStatus('WARNING: This method is deprecated and not maintained. Use All tables to CSV instead.')
             written = 0
             #TODO change to iterator pattern
             for file in self.settingsReader.getTypes('gaze'):
@@ -141,15 +153,40 @@ class DataExporter():
 
 
 
-    def exportCSV(self, multiData:object)->None:
+    def exportCSV(self, multiData:object, format:str='csv')->None:
         """Writes all data to CSV files.
 
         Useful for further manual import into MySQL.
 
         :param multiData:
+        :param format:
         :return:
         """
-        pass
+        if self.settingsReader.check() and multiData.check():
+            self.topWindow.setStatus('Exporting data channels to {0}.'.format(format.upper()))
+            saveDir = self.createDir(prefix='export')
+            if format == 'xlsx':
+                writer = pandas.ExcelWriter('{0}/channels_appended.{1}'.format(saveDir, format))
+
+            #using append mode!
+            for type in multiData.multiData.keys():
+                appended=False
+                startrow = 0
+                for (channel, id) in multiData.genChannelIds(channel=type):
+                    file = '{0}/{1}_appended.{2}'.format(saveDir, channel, format)
+                    data = multiData.getChannelAndTag(channel, id, 'dataframe', ignoreEmpty=True)
+                    if format=='csv':
+                        data.to_csv(file, sep='\t', header=not appended, index=False, mode='a')
+                    elif format=='xlsx':
+                        data.to_excel(writer, header=not appended, index=False, sheet_name=channel, startrow=startrow, freeze_panes=(1,0), engine='pandas.io.excel.xlsx.writer')
+                        startrow = startrow + data.shape[0]
+                    appended=True
+
+            if format=='xlsx':
+                writer.save()
+
+            self.topWindow.setStatus('Done. Intervals trimmed and tagged.', color='success')
+            self.copyMeta()
 
 
 

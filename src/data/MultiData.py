@@ -80,12 +80,13 @@ class MultiData():
         """
         self.__init__(self.topWindow)
 
-    def setNode(self, channel: str, id: str, data: object) -> None:
+    def setNode(self, channel: str, id: str, data: object, recordId:str='defaultRecord') -> None:
         """Sets chosen node in hierarchy of multiData to given data object.
         
         :param channel: string of type from settings.
         :param id: string of channel id from settings.
         :param data: object with some data, probably pandas dataframe or python list.
+        :param recordId: record id attribute value from settings file
         :return: 
         """
         self.topWindow.logger.debug('setting data node...')
@@ -97,7 +98,7 @@ class MultiData():
     #FIXME make channel/type/id arguments consistent across all code
     #but type is correct for settings file type, channel is correct for data channel
     def getChannelById(self, channel:str, id:str, format:str='as_is') -> object:
-        """Returns what's inside multiData[channel][id] dict hierarchy, possible converting to dataframe.
+        """Returns what's inside multiData[channel][id] dict hierarchy, possibly converting to dataframe.
         
         :param channel: string of type from settings.
         :param id: string of channel id from settings.
@@ -110,7 +111,7 @@ class MultiData():
             if type(result)==pympi.Elan.Eaf or type(result)==pympi.Praat.TextGrid or type(result)==praatio.tgio.Textgrid:
                 return Annotations.parseAnnotationToDataframe(self.topWindow, result, settingsReader=self.settingsReader)
             elif type(result)==DataFrame:
-                self.topWindow.setStatus('WARNING: Data object was already DataFrame. Returning as is.')
+                self.topWindow.setStatus('WARNING: Data object was already DataFrame ({0}). Returning as is.'.format(self.settingsReader.getPathAttrById(channel, id, absolute=True)))
                 return result
             else:
                 self.topWindow.setStatus('WARNING: converting this type of data to DataFrame not implemented.')
@@ -306,4 +307,5 @@ class MultiData():
         #TODO issue #10
         #TODO проверить чтобы длины интервалов не выходили за пределы самой записи, а в статистике при этом должны выводиться фактические суммарные длительности, а не декларированные в настройках
         #TODO количество и длительности фиксаций в ocul и в gaze должны быть идентичны
+        #что каждого id в каждом типе аннотаций только по 1 штуке
         pass

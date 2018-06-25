@@ -244,7 +244,7 @@ class SettingsReader:
         found=False
         if self.check(full=True):
             for elem in self.getTypes(type):
-                file=self.dataDir + '/' + elem.get('path')
+                file= '{0}/{1}'.format(self.dataDir, elem.get('path'))
                 if os.path.exists(file):
                     if not found:
                         self.topWindow.setStatus('Reading {0} data...'.format(type))
@@ -283,6 +283,15 @@ class SettingsReader:
         """
         return self.settings.findall("file[@type='"+type+"']")
 
+    def getRecordId(self)->str:
+        """Returns the only record id attribute.
+
+        :return: str with id
+        """
+        #return self.settings.find("record[@id]")
+        return 'defaultRecord'
+
+
     def unique(self,element:str='file',field:str='',serial:bool=False)->list:
         """Filters all specified elements by field and returns unique.
         
@@ -315,7 +324,7 @@ class SettingsReader:
         file=self.getTypeById(typeZeroName,id)
         path=file.get('path')
         if absolute:
-            return self.dataDir+'/'+path
+            return '{0}/{1}'.format(self.dataDir, path)
         else:
             return os.path.splitext(path)[0]
 
