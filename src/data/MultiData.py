@@ -135,6 +135,13 @@ class MultiData():
         if ('Record tag' not in chData.columns) and ('Id' not in chData.columns):
             chData.insert(1, 'Record tag', pathAttr)
             chData.insert(2, 'Id', id)
+        #FIXME dirty implementation
+        elif 'Id 2' not in chData.columns:
+            chData['Record tag']=pathAttr
+            chData.insert(3, 'Id 2', id)
+        elif 'Id 3' not in chData.columns:
+            chData.insert(4, 'Id 3', id)
+
         return self.tagIntervals(chData, startFrom, ignoreEmpty=ignoreEmpty)
 
     def getMeansByInterval(self,channel:str,id:str,interval:str):
@@ -216,7 +223,7 @@ class MultiData():
     def tagIntervals(self, chData:object, startFrom:object, ignoreEmpty:bool=True)->DataFrame:
         """Tags given data by intervals, then returns a single dataframe.
         
-        :param data: data to stack intervals from, usually after getChannelById method.
+        :param chData: data to stack intervals from, usually after getChannelById method.
         :param startFrom: zeroTime to start from.
         :param ignoreEmpty: Whether to cut off the empty and utility intervals.
         :return: DataFrame object ready to group by intervals.
@@ -228,6 +235,9 @@ class MultiData():
             intData.insert(2,'Interval',interval.get('id'))
             data.append(intData)
 
+        #case when there is no interval block in settings at all - nothing to tag
+        if len(ints)==0:
+            return chData
         if len(ints)==1:
             data=data[0]
         else:
@@ -241,6 +251,9 @@ class MultiData():
         data.insert(1, 'TimestampZeroBased', zeroBased)
 
         return data
+
+
+
 
 
     def hasColumn(self,column:str,id:str) -> bool:

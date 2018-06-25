@@ -168,19 +168,22 @@ class DataExporter():
             if format == 'xlsx':
                 writer = pandas.ExcelWriter('{0}/channels_appended.{1}'.format(saveDir, format))
 
-            #using append mode!
             for type in multiData.multiData.keys():
                 appended=False
                 startrow = 0
+                stacked=DataFrame()
+                file = '{0}/{1}_appended.{2}'.format(saveDir, type, format)
                 for (channel, id) in multiData.genChannelIds(channel=type):
-                    file = '{0}/{1}_appended.{2}'.format(saveDir, channel, format)
                     data = multiData.getChannelAndTag(channel, id, 'dataframe', ignoreEmpty=True)
                     if format=='csv':
-                        data.to_csv(file, sep='\t', header=not appended, index=False, mode='a')
+                        #data.to_csv(file, sep='\t', header=not appended, index=False, mode='a')
+                        stacked=stacked.append(data, sort=False)
                     elif format=='xlsx':
                         data.to_excel(writer, header=not appended, index=False, sheet_name=channel, startrow=startrow, freeze_panes=(1,0), engine='pandas.io.excel.xlsx.writer')
                         startrow = startrow + data.shape[0]
                     appended=True
+                if format=="csv" and len(stacked):
+                    stacked.to_csv(file, sep='\t', header=True, index=False, mode='w')
 
             if format=='xlsx':
                 writer.save()

@@ -20,12 +20,17 @@ def guessTimeFormat(val: object)-> str:
         try:
             datetime.strptime(val, fmt)
         except ValueError:
-            continue
+            try:
+                pandas.to_datetime(val, unit='s')
+            except ValueError:
+                continue
+            break
         break
     #print('Time format of ' + val + ' string is guessed as ' + fmt + '.')
     return fmt
 
 
+#FIXME valueerror if format =s.f and s>61
 def parseTime(val: object=0) -> timedelta:
     """Helper method to convert time strings to datetime objects.
 
@@ -36,7 +41,10 @@ def parseTime(val: object=0) -> timedelta:
     """
     val=str(val)
     fmt=guessTimeFormat(val)
-    parsed=datetime.strptime(val, fmt)
+    try:
+        parsed=datetime.strptime(val, fmt)
+    except ValueError:
+        parsed=pandas.to_datetime(val, unit='s')
     return datetime.combine(date.min,parsed.time())-datetime.min
 
 

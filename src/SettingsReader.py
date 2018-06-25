@@ -378,9 +378,9 @@ class SettingsReader:
         :return: A list of interval nodes from settings.
         """
         if ignoreEmpty:
-            return [interval for interval in self.settings.findall("interval") if interval.get('id') and '_' not in interval.get('id')[0]]
+            return [interval for interval in self.settings.findall('interval') if interval.get('id') and '_' not in interval.get('id')[0]]
         else:
-            return self.settings.findall("interval")
+            return self.settings.findall('interval')
 
 
     def getStartTimeById(self,id:str,format:bool=False) -> object:

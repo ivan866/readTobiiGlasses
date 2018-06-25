@@ -74,7 +74,7 @@ class DataReader():
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading gaze data (' + os.path.basename(filePath) + ')...')
             if fileExt.lower()=='.tsv':
-                self.topWindow.setStatus('Parsing .tsv file.')
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 # узнаем какие столбцы присутствуют
                 headers = pd.read_table(filePath, nrows=1, encoding='UTF-16')
                 availColumns = [i for i in list(headers.columns) if re.match('Recording timestamp|Gaze point|Gaze 3D position|Gaze direction|Pupil diameter|Eye movement type|Gaze event duration|Fixation point|Gyro|Accelerometer',i)]
@@ -205,13 +205,18 @@ class DataReader():
                     gazeData.drop(['Eye movement type', 'Gaze event duration', 'Eye movement type index',
                                    'Fixation point X', 'Fixation point Y'],
                                    axis=1, inplace=True)
-
-                multiData.setNode('gaze',fileElem.get('id'),gazeData, recordId)
             #TODO
             elif fileExt.lower() == '.json':
                 self.topWindow.setStatus('WARNING: parsing .json files not implemented.')
+            elif fileExt.lower()=='.csv':
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
+                gazeData = pd.read_csv(filePath, sep='\t')
             else:
                 self.topWindow.setStatus('Unknown file format.')
+
+
+            multiData.setNode('gaze', fileElem.get('id'), gazeData, recordId)
+
 
 
 
@@ -230,7 +235,7 @@ class DataReader():
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading voc annotation (' + os.path.basename(filePath) + ')...')
             if fileExt.lower() == '.textgrid':
-                self.topWindow.setStatus('Parsing .TextGrid file.')
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 #WARNING: encoding hard-coded
                 try:
                     vocData = TextGrid(filePath,codec='utf-16-be')
@@ -244,6 +249,9 @@ class DataReader():
                     except:
                         self.topWindow.setStatus('ERROR: Failed parsing TextGrid. Skipping file.')
                         return None
+            elif fileExt.lower()=='.csv':
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
+                vocData = pd.read_csv(filePath, sep='\t')
             else:
                 self.topWindow.setStatus('ERROR: Unknown file format.')
 
@@ -265,17 +273,21 @@ class DataReader():
             self.topWindow.setStatus('Reading manu annotation (' + os.path.basename(filePath) + ')...')
             #TODO can refactor all such blocks to function calls after 'type' conditional
             if fileExt.lower()=='.eaf':
-                self.topWindow.setStatus('Parsing .eaf file.')
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 manuData = Eaf(filePath)
             elif fileExt.lower()=='.txt':
                 #FIXME need rename 'begin time' and 'duration' columns to be consistent with .eaf parsing
-                self.topWindow.setStatus('Parsing .txt file.')
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 skiprows = self.determineSkiprows(filePath, '"#')
                 manuData = pd.read_table(filePath, skiprows=skiprows)
                 # названия столбцов не всегда одинаковые в разных записях
                 manuData.rename(columns={col: re.sub('.*m.*gesture.*', 'mGesture', col, flags=re.IGNORECASE) for col in manuData.columns}, inplace=True)
                 # manuData.rename(columns={col: re.sub('.*lt.*phases.*','mLtPhases',col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
                 # manuData.rename(columns={col: re.sub('.*rt.*phases.*', 'mRtPhases', col,flags=re.IGNORECASE) for col in manuData.columns},inplace=True)
+            #FIXME may need date and timedelta manual parsing
+            elif fileExt.lower()=='.csv':
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
+                manuData = pd.read_csv(filePath, sep='\t', error_bad_lines=True)
             else:
                 self.topWindow.setStatus('ERROR: Unknown file format.')
 
@@ -295,8 +307,11 @@ class DataReader():
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading ceph annotation (' + os.path.basename(filePath) + ')...')
             if fileExt.lower() == '.eaf':
-                self.topWindow.setStatus('Parsing .eaf file.')
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 cephData = Eaf(filePath)
+            elif fileExt.lower()=='.csv':
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
+                cephData = pd.read_csv(filePath, sep='\t')
             else:
                 self.topWindow.setStatus('ERROR: Unknown file format.')
 
@@ -316,10 +331,10 @@ class DataReader():
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading ocul annotation (' + os.path.basename(filePath) + ')...')
             if fileExt.lower() == '.eaf':
-                self.topWindow.setStatus('Parsing .eaf file.')
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 oculData = Eaf(filePath)
             elif fileExt.lower() == '.xls':
-                self.topWindow.setStatus('Parsing .xls file.')
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 oculData = pd.read_excel(filePath, header=None,
                                          #timecode should be the 1st column in current implementation
                                          names=('Begin_Time',
@@ -330,6 +345,9 @@ class DataReader():
                 oculData = oculData.applymap(lambda x: re.sub('\t(.*)', '\\1', str(x)))
                 oculData = oculData.astype({'Duration': float},copy=False)
                 oculData['Duration'] /= 1000
+            elif fileExt.lower()=='.csv':
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
+                oculData = pd.read_csv(filePath, sep='\t')
             else:
                 self.topWindow.setStatus('ERROR: Unknown file format.')
 
