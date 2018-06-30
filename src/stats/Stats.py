@@ -76,26 +76,45 @@ class Stats():
             #TODO need refactor copies of this block
             channelZeroName=self.settingsReader.substGazeRelatedChannels(channel)
             if not messageShown:
-                self.topWindow.setStatus('Now doing {0} channel.'.format(channelZeroName))
+                self.topWindow.setStatus('Now doing gaze ({0}, etc.) channel.'.format(channelZeroName))
                 messageShown=True
 
             try:
                 fData = multiData.getChannelAndTag(channel, id)
-                #allData=multiData.getDataFromAll(chData,startFrom)
                 sData = multiData.getChannelAndTag('saccades', id)
                 enfData = multiData.getChannelAndTag('eyesNotFounds', id)
                 uncData = multiData.getChannelAndTag('unclassifieds', id)
 
                 file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channelZeroName, id),statsType)
                 self.save(file,[self.groupbyListAndDescribe(fData, [], 'Gaze event duration'),
+                                self.groupbyListAndDescribe(fData, 'Id', 'Gaze event duration'),
+                                self.groupbyListAndDescribe(fData, 'Id 2', 'Gaze event duration'),
+                                self.groupbyListAndDescribe(fData, ['Id', 'Id 2'], 'Gaze event duration'),
                                 self.groupbyListAndDescribe(fData, 'Interval', 'Gaze event duration'),
+                                self.groupbyListAndDescribe(fData, ['Interval', 'Id'], 'Gaze event duration'),
+                                self.groupbyListAndDescribe(fData, ['Interval', 'Id 2'], 'Gaze event duration'),
+                                self.groupbyListAndDescribe(fData, ['Interval', 'Id', 'Id 2'], 'Gaze event duration'),
+
                                 self.groupbyListAndDescribe(sData, [], 'Gaze event duration'),
+                                self.groupbyListAndDescribe(sData, 'Id', 'Gaze event duration'),
+                                self.groupbyListAndDescribe(sData, 'Id 2', 'Gaze event duration'),
+                                self.groupbyListAndDescribe(sData, ['Id', 'Id 2'], 'Gaze event duration'),
                                 self.groupbyListAndDescribe(sData, 'Interval', 'Gaze event duration'),
+                                self.groupbyListAndDescribe(sData, ['Interval', 'Id'], 'Gaze event duration'),
+                                self.groupbyListAndDescribe(sData, ['Interval', 'Id 2'], 'Gaze event duration'),
+                                self.groupbyListAndDescribe(sData, ['Interval', 'Id', 'Id 2'], 'Gaze event duration'),
+
                                 self.groupbyListAndDescribe(enfData, [], 'Gaze event duration'),
                                 self.groupbyListAndDescribe(enfData, 'Interval', 'Gaze event duration'),
+
                                 self.groupbyListAndDescribe(uncData, [], 'Gaze event duration'),
-                                self.groupbyListAndDescribe(uncData, 'Interval', 'Gaze event duration')],
-                          sheets=['Fixations','Fixations','Saccades','Saccades','EyesNotFounds','EyesNotFounds','Unclassifieds','Unclassifieds'],
+                                self.groupbyListAndDescribe(uncData, 'Interval', 'Gaze event duration')
+                                ],
+                          sheets=['Fixations','Fixations','Fixations','Fixations','Fixations','Fixations','Fixations','Fixations',
+                                  'Saccades','Saccades','Saccades','Saccades','Saccades','Saccades','Saccades','Saccades',
+                                  'EyesNotFounds','EyesNotFounds',
+                                  'Unclassifieds','Unclassifieds'
+                                  ],
                           serial=serial)
             except AttributeError:
                 self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
@@ -115,16 +134,54 @@ class Stats():
                 messageShown = True
             try:
                 data = multiData.getChannelAndTag(channel, id, format='dataframe')
+                data['EDU'].replace(to_replace='.*', value='AnyEDU', regex=True, inplace=True)
+                data['Words'].replace(to_replace='.*', value='AnyWord', regex=True, inplace=True)
 
                 file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channel, id),statsType)
                 self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
+                                self.groupbyListAndDescribe(data, 'Id', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'Id 2', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2'], 'Duration'),
                                 self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2'], 'Duration'),
+
+                                self.groupbyListAndDescribe(data, 'EDU', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'EDU'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'EDU'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'EDU'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'EDU'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'EDU'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'EDU'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'EDU'], 'Duration'),
+
                                 self.groupbyListAndDescribe(data, 'Words', 'Duration'),
-                                self.groupbyListAndDescribe(data, 'Supra', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Words'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'Words'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'Words'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'Words'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Words'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'Words'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'Words'], 'Duration'),
+
+                                self.groupbyListAndDescribe(data, 'Supra', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Supra'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'Supra'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'Supra'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'Supra'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Supra'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'Supra'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'Supra'], 'Duration'),
+
+                                self.groupbyListAndDescribe(data, ['EDU', 'Words'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['EDU', 'Supra'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Words', 'Supra'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'Words', 'Supra'], 'Duration')],
+                                self.groupbyListAndDescribe(data, ['Interval', 'EDU', 'Words'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'EDU', 'Supra'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Words', 'Supra'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'EDU', 'Words', 'Supra'], 'Duration')
+                                ],
                           serial=serial)
             #FIXME large duplicated try-except blocks, need refactor to method
             except AttributeError:
@@ -141,6 +198,7 @@ class Stats():
 
 
 
+        #TODO все descriptive тоже надо положить в один xls в разные листы
         #TODO select needed tier combinations from XML or CLI, also possible to edit the GUI lists, after checking the GUI mode with warning
         #TODO FIXME на самом деле все поисковые запросы должны выполняться мелкими порциями через SQL-выражения, прописанные пачкой в .bat-файл или !!скрипт для MySQL
         messageShown=False
@@ -155,48 +213,99 @@ class Stats():
                 data['mAdaptor'].replace(to_replace='^.*(mAd)\d+$', value='\\1', regex=True, inplace=True)
                 data['mAdType'].replace(to_replace='.*', value='AnyAdType', regex=True, inplace=True)
                 data['mAllGeStroke'].replace(to_replace='.*', value='AnyGeStroke', regex=True, inplace=True)
-                #TODO проверить можно ли отбросить продублированные значения если не была снята галочка Repeat values of annotations
-                #self.topWindow.setStatus('WARNING: only \'mGesture\' tier will be considered in current implementation.')
-                #data.dropna(subset=(['mGesture']), inplace=True)
 
+                #TODO проверить можно ли отбросить продублированные значения если не была снята галочка Repeat values of annotations
                 file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channel, id),statsType)
                 self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
-                                self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
                                 self.groupbyListAndDescribe(data, 'Id', 'Duration'),
                                 self.groupbyListAndDescribe(data, 'Id 2', 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Id', 'Id 2'], 'Duration'),
+                                self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, 'mLtMtType', 'Duration'),
-                                #self.groupbyListAndDescribe(data, 'mRtMtType', 'Duration'),
-                                #self.groupbyListAndDescribe(data, 'mLtStType', 'Duration'),
-                                #self.groupbyListAndDescribe(data, 'mRtStType', 'Duration'),
 
-                                #self.groupbyListAndDescribe(data, 'mGeHandedness', 'Duration'),
-                                #self.groupbyListAndDescribe(data, 'mGeStructure', 'Duration'),
-                                #self.groupbyListAndDescribe(data, 'mGeTags', 'Duration'),
-                                #self.groupbyListAndDescribe(data, 'mGeFunction', 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mLtMtType', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'mLtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'mLtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'mLtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mLtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mLtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mLtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mLtMtType'], 'Duration'),
 
+                                self.groupbyListAndDescribe(data, 'mRtMtType', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'mRtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'mRtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'mRtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mRtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mRtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mRtMtType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mRtMtType'], 'Duration'),
 
-                                #self.groupbyListAndDescribe(data, ['mAdaptor', 'mAdType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, 'mLtStType', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'mLtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'mLtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'mLtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mLtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mLtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mLtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mLtStType'], 'Duration'),
 
+                                self.groupbyListAndDescribe(data, 'mRtStType', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'mRtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'mRtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'mRtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mRtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mRtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mRtStType'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mRtStType'], 'Duration'),
 
-
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mLtMtType'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mRtMtType'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mLtStType'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mRtStType'], 'Duration'),
                                 self.groupbyListAndDescribe(data, 'mGesture', 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Id', 'mGesture'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Id 2', 'mGesture'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'mGesture'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'mGesture'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'Id','mGesture'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2','mGesture'], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2','mGesture'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mGeStructure'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mGeTags'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mGeFunction'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mGesture'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mGesture'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mGesture'], 'Duration'),
+
+                                self.groupbyListAndDescribe(data, 'mGeHandedness', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'mGeHandedness'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'mGeHandedness'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'mGeHandedness'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mGeHandedness'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mGeHandedness'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mGeHandedness'], 'Duration'),
+
+                                self.groupbyListAndDescribe(data, 'mGeStructure', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'mGeStructure'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'mGeStructure'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'mGeStructure'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mGeStructure'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mGeStructure'],'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mGeStructure'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mGeStructure'],'Duration'),
+
+                                self.groupbyListAndDescribe(data, 'mGeTags', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'mGeTags'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'mGeTags'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'mGeTags'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mGeTags'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mGeTags'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mGeTags'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mGeTags'], 'Duration'),
+
+                                self.groupbyListAndDescribe(data, 'mGeFunction', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'mGeFunction'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', 'mGeFunction'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'mGeFunction'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'mGeFunction'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mGeFunction'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mGeFunction'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mGeFunction'], 'Duration'),
+
                                 self.groupbyListAndDescribe(data, 'mAdaptor', 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Id', 'mAdaptor'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Id 2', 'mAdaptor'], 'Duration'),
@@ -214,7 +323,7 @@ class Stats():
                                 self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mAdType'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mAdType'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mAdType'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mAdaptor', 'mAdType'], 'Duration'),
+
                                 self.groupbyListAndDescribe(data, 'mLtGeStroke', 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Id', 'mLtGeStroke'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Id 2', 'mLtGeStroke'], 'Duration'),
@@ -241,9 +350,7 @@ class Stats():
                                 self.groupbyListAndDescribe(data, ['Interval', 'Id', 'mAllGeStroke'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'mAllGeStroke'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'mAllGeStroke'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mLtGeStroke', 'mRtGeStroke', 'mAllGeStroke'], 'Duration'),
-                                #self.groupbyListAndDescribe(data, ['Interval', 'mGeHandedness','mGeStructure','mGeTags','mGeFunction'], 'Duration')
-                    ],
+                                ],
                           serial=serial)
             except AttributeError:
                 self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
@@ -299,27 +406,40 @@ class Stats():
             try:
                 data=multiData.getChannelAndTag(channel, id, format='dataframe')
                 #FIXME временный 'костыль', пока не поправят в исходниках аннотаций
-                data.rename(columns={'E_Locus': 'E_Localization'}, inplace=True)
+                #data.rename(columns={'E_Locus': 'E_Localization'}, inplace=True)
+                dataLowered=data['E_Localization'].str.lower()
 
                 file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channel, id),statsType)
                 self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
-                                self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
                                 self.groupbyListAndDescribe(data, 'Id', 'Duration'),
                                 self.groupbyListAndDescribe(data, 'Id 2', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2'], 'Duration'),
+                                self.groupbyListAndDescribe(data, 'Interval', 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2'], 'Duration'),
 
                                 self.groupbyListAndDescribe(data, 'E_Interlocutor', 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Id', 'E_Interlocutor'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Id 2', 'E_Interlocutor'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', 'E_Interlocutor'], 'Duration'),
                                 self.groupbyListAndDescribe(data, ['Interval', 'E_Interlocutor'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'E_Interlocutor'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', 'E_Interlocutor'], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', 'E_Interlocutor'], 'Duration'),
 
-                                self.groupbyListAndDescribe(data, data['E_Localization'].str.lower(), 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Id', data['E_Localization'].str.lower()], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Id 2', data['E_Localization'].str.lower()], 'Duration'),
-                                self.groupbyListAndDescribe(data, ['Interval', data['E_Localization'].str.lower()],'Duration'),
+                                self.groupbyListAndDescribe(data, dataLowered, 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', dataLowered], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id 2', dataLowered], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Id', 'Id 2', dataLowered], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', dataLowered], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', dataLowered], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id 2', dataLowered], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'Id', 'Id 2', dataLowered], 'Duration'),
 
-                                self.groupbyListAndDescribe(data, ['E_Interlocutor', data['E_Localization'].str.lower()], 'Duration'),
-                                self.groupbyListAndDescribe(data,['Interval', 'E_Interlocutor', data['E_Localization'].str.lower()],'Duration')],
+                                self.groupbyListAndDescribe(data, ['E_Interlocutor', dataLowered], 'Duration'),
+                                self.groupbyListAndDescribe(data, ['Interval', 'E_Interlocutor', dataLowered],'Duration')
+                                ],
                           serial=serial)
             except AttributeError:
                 self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel,id))
@@ -402,10 +522,6 @@ class Stats():
     #  это позволит и видоизменять язык надписей без труда, и цвета
     #TODO export plot data to standard format
     #TODO bokeh html interactive output
-    #  tools=, tooltips=
-    #  figure.line(, line_color="#FF0000", line_width=8, alpha=0.7, legend="PDF")
-    #  figure.legend.location='center_right'
-    #  figure.legend.background_fill_color='darkgrey'
     def ANOVA_stats(self, multiData:object, pivotData:object, dataExporter:object)->None:
         """Analysis of variance on distribution data.
 
@@ -417,12 +533,36 @@ class Stats():
         :return:
         """
         self.topWindow.setStatus('ANOVA requested.')
+        data=multiData.getChannelById('manu', 'all')
+        data['mGesture'].replace(to_replace='^.*(mGe)\d+$', value='\\1', regex=True, inplace=True)
         #self.topWindow.setStatus('Standardizing to z-scores.')
         #проверить есть ли разница в величине f-теста с и без z-score
         #zdata1=scipy.stats.zscore(data1, axis=0)
 
-        self.topWindow.setStatus('Sample size and distribution requirements.')
+        self.topWindow.setStatus('Sample size is:')
         #statsmodels.stats.power.FTestAnovaPower.power
+
+        ids = ['C', 'N', 'R']
+        grouped = data.groupby(['Id', 'mGesture'])['Duration']
+        groupedList = [list(grouped)[0][1], list(grouped)[1][1], list(grouped)[2][1]]
+        plt.title('Плотность распределения длительности жестов (гистограмма)')
+        plt.xlabel('Длительность (с)')
+        plt.ylabel('Плотность')
+        plt.hist(groupedList, bins=20, density=True, cumulative=False, orientation='vertical', rwidth=0.5)
+
+        #plt.bar()
+        #with sns.axes_style('darkgrid'):
+        #    sns.barplot(, estimator=sum, hue='')
+        #scipy.stats.binned_statistic(, statistic='count', bins=10)
+        #scipy.stats.cumfreq(, numbins=10)
+
+        plt.title('Распределение длительности жестов')
+        plt.xlabel('Роль участника')
+        plt.ylabel('Длительность (с)')
+        plt.boxplot(groupedList, widths=0.25, showfliers=True, labels=ids)
+        plt.minorticks_off()
+        #можно добавить субграфик просто медиан с доверительными интервалами
+
         #number of modes ??function
         #проверка сбалансированности измерений
         # kernel1=scipy.stats.gaussian_kde(data1, bw_method='scott')
@@ -430,55 +570,39 @@ class Stats():
         # xs=numpy.linspace(min(data1),max(data1),100)
         # plt.plot(xs,kernel1(xs))
         # plt.plot(xs,kernel2(xs))
-        plt.title('Плотность распределения')
+        #plt.plot(xs, plt.ylim()[1]*norm_distr_for_data.pdf(xs))
+
+        plt.title('Плотность распределения жестов')
         plt.xlabel('Длительность (с)')
         plt.ylabel('Плотность')
-        #plt.axes().set_major_locator(plt.MaxNLocator(10))
-        #plt.minorticks_on()
-        plt.hist(data1, bins=20, density=True, cumulative=False, orientation='vertical', rwidth=0.5, color=None)    #bins='auto'
-        #plt.hist(data2, bins=20, density=True, cumulative=False, orientation='vertical')
-        #sns.kdeplot(norm_distr_for_data.pdf(xs), bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=False)  #kdeplot(data1, data2)
-        plt.plot(xs, plt.ylim()[1]*norm_distr_for_data.pdf(xs))
-        sns.kdeplot(data1, bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=False)  #kdeplot(data1, data2)
-        sns.kdeplot(data1, bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=True)  #kdeplot(data1, data2)
-        #sns.kdeplot(data2, bw=0.15)
-        #plt.grid()
+        #sns.distplot(, rug=True)
+        sns.kdeplot(groupedList[0], bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=False, label=ids[0])
+        sns.kdeplot(groupedList[1], bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=False, label=ids[1])
+        sns.kdeplot(groupedList[2], bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=False, label=ids[2])
+        #
+        #sns.kdeplot(samples[0], cumulative=True)
+        #sns.kdeplot(samples[1], cumulative=True)
+        #sns.kdeplot(samples[2], cumulative=True)
+
+        sns.swarmplot(x='Роль участника', y='Длительность (с)', data=grouped)
+        # plt.scatter()
+        # Q-Q plot можно для разных переменных, чтобы видеть профиль и сравнивать
+        # plt.errorbar()
 
         #scipy.stats.norm.rvs(size=100)
-        sns.kdeplot(data1, bw=0.15, cumulative=True)  #kdeplot(data1, data2)
-        sns.kdeplot(data2, bw=0.15)
-        # Q-Q plot
-        #plt.scatter()
-        #scipy.stats.norm.rvs(size=100)
-        loc, scale = scipy.stats.norm.fit(data1)
+        loc, scale = scipy.stats.norm.fit(groupedList[0])
         norm_distr_for_data=scipy.stats.norm(loc=loc, scale=scale)
-        scipy.stats.kstest(data1, norm_distr_for_data.cdf)
-        scipy.stats.levene(zdata1,zdata2)
+        sns.kdeplot(norm_distr_for_data.pdf(xs), bw=0.15, shade=True, vertical=False, gridsize=100, legend=True, cumulative=False)
+        sns.kdeplot(groupedList[0], cumulative=True)
+        #
+        scipy.stats.kstest(sample1, norm_distr_for_data.cdf)
+        scipy.stats.levene(sample1,sample2)
 
         self.topWindow.setStatus('F-test:')
-        sample1=multiData.getChannelAndTag('ocul','N', format='dataframe')
-        data1=sample1.loc[sample1['Interval']=='01_tell','Duration']
-        sample2=multiData.getChannelAndTag('ocul','R', format='dataframe')
-        data2=sample2.loc[sample2['Interval']=='01_tell','Duration']
         scipy.stats.f_oneway(zdata1,zdata2)
-
-
         #effect size
         #scheffe test
 
-        self.topWindow.setStatus('Distributional plots...')
-        #plt.bar()
-        #with sns.axes_style('darkgrid'):
-        #    sns.barplot(, estimator=sum, hue='')
-        #scipy.stats.binned_statistic(, statistic='count', bins=10)
-        #data1.hist(bins=10)
-        plt.hist(data1, bins='auto', density=False, cumulative=True, orientation='vertical')
-        #scipy.stats.cumfreq(, numbins=10)
-        #plt.boxplot(data2, notch=True, sym='.', vert=True)   #labels=[]
-        #sns.swarmplot()
-        #dataframe.boxplot(,by=,figsize=(8,6))
-        #Q-Q plot можно для разных переменных, чтобы видеть профиль и сравнивать
-        #plt.errorbar()
         #plt.savefig()
 
 
@@ -486,8 +610,9 @@ class Stats():
 
 
 
+    #TODO add ratio by index column to all groupings where id or id 2 present
     #FIXME interval sort order must be always unsorted
-    #TODO must refactor all describe logic to separate method
+    #TODO must refactor all describe, grouping and filtering logic to separate method in multidata class (incapsulation)
     #TODO can factor out returned dataframes from multidata to special inherited and extended class, e.g. DataChannel
     #  который будет иметь hooks на методы обсчета статистики и возвращать нужные groupedby таблицы
     #  это позволит делать method chaining через точку
@@ -529,12 +654,12 @@ class Stats():
             if ('Interval' in str(groupby)) and (len(groupby) == 1):
                 #recordDur = self.settingsReader.totalDuration()
                 #for 'channels_appended' dataframes
-                recordDur = sliced['sum'].sum()
+                recordDur = numpy.sum([Utils.parseTime(t) for row in grouped['Interval duration'].unique() for t in row]).total_seconds()
                 #не все интервалы могут присутствовать в срезе
                 #durs=[]
-                #quick and dirty implementation
-                durs=sliced['sum'].tolist()
-                durs = [Utils.parseTime(dur) for dur in durs]
+                #FIXME hotfix
+                durs = [[Utils.parseTime(t) for t in row] for row in grouped['Interval duration'].unique()]
+                durs = [numpy.sum(parsed) for parsed in durs]
                 #for interval in list(sliced.index):
                     #durs.append(self.settingsReader.getDurationById(interval))
                 durs=Series(durs)/numpy.timedelta64(1,'s')
@@ -558,8 +683,8 @@ class Stats():
             sliced = pandas.concat([agg1, agg2, agg3])
             sliced=DataFrame(sliced).transpose()
             #recordDur=self.settingsReader.totalDuration()
-            recordDur = sliced['sum'].sum()
-            sliced.insert(0, 'duration', value=recordDur)#.total_seconds())
+            recordDur = numpy.sum([Utils.parseTime(t) for t in data['Interval duration'].unique()])
+            sliced.insert(0, 'duration', value=recordDur.total_seconds())
 
         return sliced
 
@@ -640,3 +765,7 @@ class Stats():
                     self.topWindow.setStatus('WARNING: Empty table encountered in file {0}. Omitting from report.'.format(os.path.basename(file)))
 
             writer.save()
+    #  tools=, tooltips=
+    #  figure.line(, line_color="#FF0000", line_width=8, alpha=0.7, legend="PDF")
+    #  figure.legend.location='center_right'
+    #  figure.legend.background_fill_color='darkgrey'

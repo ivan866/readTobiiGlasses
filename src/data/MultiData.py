@@ -26,6 +26,10 @@ class MultiData():
         self.settingsReader = SettingsReader.getReader()
         self.multiData={}
         self.multiData['availColumns'] = {}
+        self.multiData['voc'] = {}
+        self.multiData['manu'] = {}
+        self.multiData['ceph'] = {}
+        self.multiData['ocul'] = {}
         self.multiData['gaze'] = {}
         self.multiData['fixations'] = {}
         self.multiData['saccades'] = {}
@@ -34,10 +38,6 @@ class MultiData():
         self.multiData['imu'] = {}
         self.multiData['gyro'] = {}
         self.multiData['accel'] = {}
-        self.multiData['voc'] = {}
-        self.multiData['manu'] = {}
-        self.multiData['ceph'] = {}
-        self.multiData['ocul'] = {}
         self.empty = True
 
 
@@ -111,10 +111,10 @@ class MultiData():
             if type(result)==pympi.Elan.Eaf or type(result)==pympi.Praat.TextGrid or type(result)==praatio.tgio.Textgrid:
                 return Annotations.parseAnnotationToDataframe(self.topWindow, result, settingsReader=self.settingsReader)
             elif type(result)==DataFrame:
-                self.topWindow.setStatus('WARNING: Data object was already DataFrame ({0}). Returning as is.'.format(self.settingsReader.getPathAttrById(channel, id, absolute=True)))
+                #self.topWindow.setStatus('Data object of type {0} of id {1} was already DataFrame. Returning as is.'.format(channel,id))
                 return result
             else:
-                self.topWindow.setStatus('WARNING: converting this type of data to DataFrame not implemented.')
+                self.topWindow.setStatus('WARNING: Converting this type of data to DataFrame not implemented.')
                 return None
         elif format=='as_is':
             return result
@@ -133,14 +133,14 @@ class MultiData():
         startFrom = self.settingsReader.getZeroTimeById(channelZeroName, id)
         pathAttr=self.settingsReader.getPathAttrById(type=channelZeroName,id=id)
         if ('Record tag' not in chData.columns) and ('Id' not in chData.columns):
-            chData.insert(1, 'Record tag', pathAttr)
-            chData.insert(2, 'Id', id)
-        #FIXME dirty implementation
+            chData.insert(2, 'Record tag', pathAttr)
+            chData.insert(3, 'Id', id)
+        #FIXME hotfix
         elif 'Id 2' not in chData.columns:
             chData['Record tag']=pathAttr
-            chData.insert(3, 'Id 2', id)
-        elif 'Id 3' not in chData.columns:
-            chData.insert(4, 'Id 3', id)
+            chData.insert(8, 'Id 2', id)
+        #elif 'Id 3' not in chData.columns:
+        #    chData.insert(9, 'Id 3', id)
 
         return self.tagIntervals(chData, startFrom, ignoreEmpty=ignoreEmpty)
 
@@ -232,7 +232,8 @@ class MultiData():
         ints=self.settingsReader.getIntervals(ignoreEmpty=ignoreEmpty)
         for interval in ints:
             intData=self.getDataInterval(chData, startFrom, interval.get('id'))
-            intData.insert(2,'Interval',interval.get('id'))
+            intData.insert(4,'Interval',interval.get('id'))
+            intData.insert(5,'Interval duration',interval.get('duration'))
             data.append(intData)
 
         #case when there is no interval block in settings at all - nothing to tag

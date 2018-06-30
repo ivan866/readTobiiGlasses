@@ -169,21 +169,22 @@ class DataExporter():
                 writer = pandas.ExcelWriter('{0}/channels_appended.{1}'.format(saveDir, format))
 
             for type in multiData.multiData.keys():
-                appended=False
+                #appended=False
                 startrow = 0
                 stacked=DataFrame()
                 file = '{0}/{1}_appended.{2}'.format(saveDir, type, format)
                 for (channel, id) in multiData.genChannelIds(channel=type):
                     data = multiData.getChannelAndTag(channel, id, 'dataframe', ignoreEmpty=True)
-                    if format=='csv':
-                        #data.to_csv(file, sep='\t', header=not appended, index=False, mode='a')
-                        stacked=stacked.append(data, sort=False)
-                    elif format=='xlsx':
-                        data.to_excel(writer, header=not appended, index=False, sheet_name=channel, startrow=startrow, freeze_panes=(1,0), engine='pandas.io.excel.xlsx.writer')
-                        startrow = startrow + data.shape[0]
-                    appended=True
+                    #if format=='csv':
+                    #data.to_csv(file, sep='\t', header=not appended, index=False, mode='a')
+                    stacked=stacked.append(data, sort=False)
+                    #appended=True
+
                 if format=="csv" and len(stacked):
                     stacked.to_csv(file, sep='\t', header=True, index=False, mode='w')
+                elif format=='xlsx' and len(stacked):
+                    stacked.to_excel(writer, header=True, index=False, sheet_name=channel, startrow=0, freeze_panes=(1,0), engine='pandas.io.excel.xlsx.writer')
+                    #startrow = startrow + data.shape[0]
 
             if format=='xlsx':
                 writer.save()
@@ -195,17 +196,15 @@ class DataExporter():
 
 
 
-    #TODO SQL export issue + praat annotations
+    #TODO SQL export issue
     #TODO надо почитать как вообще комбинируются запросы в текстовое выражение, какие приемы существуют
     #TODO форму преобразования в таблицы см. в описании issue
-    #TODO сначала проверить что txt и eaf считались идентично
     def exportSQL(self,multiData:object)->None:
         """Writes all data to SQl database using SQLite.
 
         :param multiData: multiData object to write
         :return:
         """
-        #TODO pivotData export to SQL
         if self.settingsReader.check() and multiData.check():
             self.topWindow.setStatus('Creating SQL database...')
             saveDir = self.createDir(prefix='export')

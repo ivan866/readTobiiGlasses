@@ -154,7 +154,7 @@ class SettingsReader:
         self.topWindow.setStatus('Settings parsed ('+self.settingsFile+').',color='success')
 
         if len(self.getIntervals(ignoreEmpty=True)) == 0:
-            self.topWindow.setStatus('WARNING: No intervals specified. Please explicitly specify at least 1 named interval in settings file.')
+            self.topWindow.setStatus('WARNING: No intervals specified. Are you working with already tagged data?')# Please explicitly specify at least 1 named interval in settings file.')
 
 
     #FIXME not only desc-stats can be done in batch mode
@@ -261,7 +261,8 @@ class SettingsReader:
         :param channel: gaze related channel name, like fixations or gyro.
         :return: 'gaze' or, in case of not related channel given, returns the argument unchanged.
         """
-        if channel == 'fixations' or channel == 'saccades' or channel == 'eyesNotFounds' or channel == 'unclassifieds' or channel == "imu" or channel == "gyro" or channel == "accel":
+        #FIXME hotfix, may be non-universal
+        if channel in self.topWindow.GAZE_COMPONENTS_LIST and self.hasType('gaze') and not self.hasType('fixations'):
             return 'gaze'
         else:
             return channel
@@ -322,7 +323,13 @@ class SettingsReader:
         #FIXME где уже была использована эта функция, но без учета absolute
         typeZeroName=self.substGazeRelatedChannels(type)
         file=self.getTypeById(typeZeroName,id)
+        #if file:
         path=file.get('path')
+        #FIXME hotfix
+        #gaze channel absent in settings
+        #else:
+        #    file = self.getTypeById(type, id)
+        #    path = file.get('path')
         if absolute:
             return '{0}/{1}'.format(self.dataDir, path)
         else:
@@ -354,6 +361,15 @@ class SettingsReader:
         zeroTime=file.get('zeroTime',default='0')
         if len(self.getTypes(zeroTime)):
             zeroTime=self.getTypeById(zeroTime,id).get('zeroTime')
+        #случай когда zeroTime ссылается на другой тип, а он отсутствует
+        try:
+            #FIXME duplicate method call
+            Utils.parseTime(zeroTime)
+        except:
+            self.topWindow.reportError()
+            self.topWindow.setStatus('ERROR: Probably zeroTime attribute for type {0}, id {1} wrongly defined in settings.'.format(type,id))
+            self.topWindow.setStatus('ERROR: Consider correcting it or omit file entirely.')
+            raise
 
         if parse:
             return Utils.parseTime(zeroTime)
@@ -459,6 +475,19 @@ class SettingsReader:
             return dur
         else:
             return dur.strftime('%M:%S.%f')
+
+
+
+    def hasType(self,type:str)->bool:
+        """Checks if such file type present.
+
+        :param type:
+        :return:
+        """
+        if type in self.unique(field='type'):
+            return True
+        else:
+            return False
 
 
 

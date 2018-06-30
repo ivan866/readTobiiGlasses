@@ -50,7 +50,7 @@ def parseTime(val: object=0) -> timedelta:
 
 def parseTimeV(data:Series)->Series:
     """Vectorized version of parseTime method.
-    
+
     :param data: pandas Series object.
     :return: Same object with values converted to timedelta.
     """

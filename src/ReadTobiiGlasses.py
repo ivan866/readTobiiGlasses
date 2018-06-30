@@ -12,40 +12,38 @@ from tkinter import *
 import matplotlib
 import matplotlib.pylab as pylab
 matplotlib.rcParams['backend'] = "TkAgg"
-matplotlib.style.use('bmh') #bmh, ggplot, seaborn
+matplotlib.style.use('bmh') #bmh, ggplot, seaborn, fivethirtyeight
 params = {
           #'font.family': 'arial',
-          'figure.figsize': (8, 6),
+          'figure.figsize': (6, 6),
           #'figure.dpi': 150,
-          'axes.titlesize': 'small',
+          'axes.titlesize': 'medium',
+          'axes.titleweight': 'bold',
           'axes.labelsize': 'small',
           #'axes.facecolor': '#E8DDCB',
           'axes.grid': True,
           'axes.grid.which': 'major',    #both, major
           'axes.axisbelow': True,    #line, False
-          #'grid.linewidth': 0.8,    #line, False
           #'grid.alpha': 0.8,    #line, False
           'xtick.labelsize': 'x-small',
           'ytick.labelsize': 'x-small',
           'xtick.direction': 'out',
           'ytick.direction': 'out',
-          #'xtick.top': True,
           'ytick.left': True,
           'xtick.bottom': True,
-          #'ytick.right': True,
-          #'xtick.minor.top': True,
           'ytick.minor.left': True,
           'xtick.minor.bottom': True,
-          #'ytick.minor.right': True,
           'xtick.minor.visible': True,
           'ytick.minor.visible': True,
           'legend.fontsize': 'xx-small',
           'legend.facecolor': 'grey',
           'hist.bins': 20,
+          'boxplot.vertical': True,
           'boxplot.notch': True,
-          'boxplot.showmeans': True,
+          'boxplot.showmeans': False,
           'boxplot.showcaps': True,
-          'boxplot.meanline': True,
+          'boxplot.showfliers': False,
+          'boxplot.meanline': False,
           'errorbar.capsize': 9
           }
 pylab.rcParams.update(params)
@@ -110,6 +108,7 @@ class ReadTobiiGlasses():
 
         self.PROJECT_NAME='Read Tobii Glasses'
         self.PROJECT_NAME_SHORT='RTG'
+        self.GAZE_COMPONENTS_LIST=['fixations','saccades','eyesNotFounds','unclassifieds',"imu","gyro","accel"]
         self.VIDEO_FRAMERATE=100
         self.PYPER_MANU_ARGS=[128,100,2000,1000,'manu_output']
         self.logger.debug('creating tk root..')
@@ -159,14 +158,14 @@ class ReadTobiiGlasses():
         settingsMenu = Menu(self.rootMenu, tearoff=0)
         settingsMenu.add_command(label="Select...", command=self.settingsReader.select)
         settingsMenu.add_command(label="Edit...", command=self.settingsReader.open)
-        settingsMenu.add_command(label="Run batch and pivot tables...", command=lambda: self.settingsReader.selectBatch(self.pivotData,self.stats,dataReader=self.dataReader,multiData=self.multiData))
+        settingsMenu.add_command(label="Run batch and pivot tables...", command=lambda: self.settingsReader.selectBatch(self.pivotData,self.stats,dataReader=self.dataReader,multiData=self.multiData), state=DISABLED)
         self.rootMenu.add_cascade(label="Settings", menu=settingsMenu)
 
 
         dataMenu = Menu(self.rootMenu, tearoff=0)
         dataMenu.add_command(label="Parse settings and read data", command=lambda: self.dataReader.read(self.settingsReader,self.multiData))
         dataMenu.add_command(label="Summary and validation", command=self.multiData.validate)
-        dataMenu.add_command(label="Standartization", command=lambda: self.setStatus('Not implemented.'))
+        dataMenu.add_command(label="Standartization", command=lambda: self.setStatus('Not implemented.'), state=DISABLED)
         exportMenu = Menu(dataMenu, tearoff=0)
         exportMenu.add_command(label="Fixations/saccades to CSV", command=lambda: self.dataExporter.exportFixations(self.multiData,'csv'))
         exportMenu.add_command(label="Fixations/saccades to Excel", command=lambda: self.dataExporter.exportFixations(self.multiData,'xls'))
@@ -178,7 +177,7 @@ class ReadTobiiGlasses():
         self.rootMenu.add_cascade(label="Data", menu=dataMenu)
 
         annotationMenu = Menu(self.rootMenu, tearoff=0)
-        annotationMenu.add_command(label="Sanity check", command=lambda: self.setStatus('Not implemented.'))
+        annotationMenu.add_command(label="Sanity check", command=lambda: self.setStatus('Not implemented.'), state=DISABLED)
         annotationMenu.add_command(label="Detect ceph motions (gyro)", command=lambda: Annotations.imuToEaf(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
         annotationMenu.add_command(label="Detect manu motions (pyper)", command=lambda: Annotations.callPyper(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter, args=self.PYPER_MANU_ARGS))
         annotationMenu.add_command(label="Convert pyper CSV to EAF", command=lambda: Annotations.pyperToEaf(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
@@ -232,7 +231,7 @@ class ReadTobiiGlasses():
         distrMenu.add_command(label="Histogram", command=lambda: self.setStatus('Not implemented.'))
         distrMenu.add_command(label="Density", command=lambda: self.setStatus('Not implemented.'))
         distrMenu.add_command(label="Cumulative", command=lambda: self.setStatus('Not implemented.'))
-        distrMenu.add_command(label="Spectrogram", command=lambda: self.spectrogram.drawByIntervals(self.multiData))
+        distrMenu.add_command(label="Spectrogram", command=lambda: self.spectrogram.drawByIntervals(self.multiData), state=DISABLED)
         vizMenu.add_cascade(label="Distribution", menu=distrMenu)
         videoMenu = Menu(vizMenu, tearoff=0)
         videoMenu.add_command(label="AviSynth player", command=lambda: self.aviSynthPlayer.launchAVS(self.settingsReader))
@@ -240,9 +239,9 @@ class ReadTobiiGlasses():
         videoMenu.add_command(label="Investigate sync tags", command=lambda: self.setStatus('Not implemented.'))
         videoMenu.add_command(label="Montage single video...", command=lambda: self.setStatus('Not implemented.'))
         vizMenu.add_cascade(label="Video", menu=videoMenu)
-        vizMenu.add_command(label="Heatmap", command=lambda: self.setStatus('Not implemented.'))
+        vizMenu.add_command(label="Heatmap", command=lambda: self.setStatus('Not implemented.'), state=DISABLED)
         vizMenu.add_command(label="Distance matrix", command=lambda: self.setStatus('Not implemented.'))
-        vizMenu.add_command(label="3D scene reconstruction", command=lambda: self.setStatus('Not implemented.'))
+        vizMenu.add_command(label="3D scene reconstruction", command=lambda: self.setStatus('Not implemented.'), state=DISABLED)
         self.rootMenu.add_cascade(label="Media", menu=vizMenu)
 
 
@@ -250,7 +249,7 @@ class ReadTobiiGlasses():
         manualsMenu = Menu(helpMenu, tearoff=0)
         manualsMenu.add_command(label="Tobii coordinate systems", command=lambda: self.gotoWeb('coordSys'))
         manualsMenu.add_command(label="Tobii gyroscope data format", command=lambda: self.gotoWeb('glasses2API'))
-        manualsMenu.add_command(label="JAI Go Camera manuals", command=lambda: self.gotoWeb('jaiCameras'))
+        manualsMenu.add_command(label="JAI Go camera", command=lambda: self.gotoWeb('jaiCameras'))
         helpMenu.add_cascade(label="Manuals", menu=manualsMenu)
         helpMenu.add_command(label="FAQ", command=lambda: self.gotoWeb('FAQ'))
         helpMenu.add_command(label="Wiki", command=lambda: self.gotoWeb('wiki'))

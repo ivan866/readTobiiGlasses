@@ -47,6 +47,8 @@ class DataReader():
         multiData.reset()
         try:
             self.readTobii(settingsReader, multiData)
+            #gaze разделенный на каналы после export csv
+            self.readGazeComponents(settingsReader, multiData)
             self.readVoc(settingsReader, multiData)
             self.readManu(settingsReader, multiData)
             self.readCeph(settingsReader, multiData)
@@ -56,6 +58,7 @@ class DataReader():
         except:
             self.topWindow.reportError()
             raise
+
 
 
 
@@ -72,7 +75,7 @@ class DataReader():
         for fileElem in settingsReader.genTypeFile('gaze'):
             filePath = settingsReader.getPathAttrById('gaze', fileElem.get('id'), absolute=True)
             fileExt = os.path.splitext(filePath)[1]
-            self.topWindow.setStatus('Reading gaze data (' + os.path.basename(filePath) + ')...')
+            self.topWindow.setStatus('Reading gaze data ({0})...'.format(os.path.basename(filePath)))
             if fileExt.lower()=='.tsv':
                 self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 # узнаем какие столбцы присутствуют
@@ -139,6 +142,8 @@ class DataReader():
                                     (gazeData['Eye movement type'] == 'EyesNotFound')]
 
 
+
+                #TODO need refactor - all gaze events now must be pooled to single dataframe, for groupingby as all other channels are done
                 if multiData.hasColumn('Eye movement type',fileElem.get('id')):
                     # вырезаем строки с фиксациями
                     fixations = gazeData.loc[gazeData['Eye movement type'] == 'Fixation'][['Recording timestamp',
@@ -219,6 +224,34 @@ class DataReader():
 
 
 
+    def readGazeComponents(self, settingsReader, multiData) -> None:
+        """Reads fixations, saccades, gyro, accel, etc.
+
+        :param settingsReader:
+        :param multiData:
+        :return:
+        """
+        try:
+            for channel in self.topWindow.GAZE_COMPONENTS_LIST:
+                for fileElem in settingsReader.genTypeFile(channel):
+                    filePath=settingsReader.getPathAttrById(channel,fileElem.get('id'),absolute=True)
+                    fileExt = os.path.splitext(filePath)[1]
+                    self.topWindow.setStatus('Reading {0} ({1})...'.format(channel,os.path.basename(filePath)))
+                    if fileExt.lower()=='.csv':
+                        self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
+                        channelData = pd.read_csv(filePath, sep='\t')
+                    else:
+                        self.topWindow.setStatus('ERROR: Unknown file format.')
+
+                    multiData.setNode(channel, fileElem.get('id'), channelData)
+        except:
+            self.topWindow.reportError()
+            self.topWindow.setStatus('ERROR: Parsing gaze components failed. Omitting from analysis.')
+            return None
+
+
+
+
 
 
     #TODO catch exceptions in case of bad format
@@ -233,7 +266,7 @@ class DataReader():
         for fileElem in settingsReader.genTypeFile('voc'):
             filePath=settingsReader.getPathAttrById('voc',fileElem.get('id'),absolute=True)
             fileExt = os.path.splitext(filePath)[1]
-            self.topWindow.setStatus('Reading voc annotation (' + os.path.basename(filePath) + ')...')
+            self.topWindow.setStatus('Reading voc annotation ({0})...'.format(os.path.basename(filePath)))
             if fileExt.lower() == '.textgrid':
                 self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 #WARNING: encoding hard-coded
@@ -270,7 +303,7 @@ class DataReader():
         for fileElem in settingsReader.genTypeFile('manu'):
             filePath=settingsReader.getPathAttrById('manu',fileElem.get('id'),absolute=True)
             fileExt=os.path.splitext(filePath)[1]
-            self.topWindow.setStatus('Reading manu annotation (' + os.path.basename(filePath) + ')...')
+            self.topWindow.setStatus('Reading manu annotation ({0})...'.format(os.path.basename(filePath)))
             #TODO can refactor all such blocks to function calls after 'type' conditional
             if fileExt.lower()=='.eaf':
                 self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
@@ -305,7 +338,7 @@ class DataReader():
         for fileElem in settingsReader.genTypeFile('ceph'):
             filePath=settingsReader.getPathAttrById('ceph',fileElem.get('id'),absolute=True)
             fileExt = os.path.splitext(filePath)[1]
-            self.topWindow.setStatus('Reading ceph annotation (' + os.path.basename(filePath) + ')...')
+            self.topWindow.setStatus('Reading ceph annotation ({0})...'.format(os.path.basename(filePath)))
             if fileExt.lower() == '.eaf':
                 self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 cephData = Eaf(filePath)
@@ -329,7 +362,7 @@ class DataReader():
         for fileElem in settingsReader.genTypeFile('ocul'):
             filePath=settingsReader.getPathAttrById('ocul',fileElem.get('id'),absolute=True)
             fileExt = os.path.splitext(filePath)[1]
-            self.topWindow.setStatus('Reading ocul annotation (' + os.path.basename(filePath) + ')...')
+            self.topWindow.setStatus('Reading ocul annotation ({0})...'.format(os.path.basename(filePath)))
             if fileExt.lower() == '.eaf':
                 self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
                 oculData = Eaf(filePath)

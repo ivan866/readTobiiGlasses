@@ -69,6 +69,9 @@ def parseAnnotationToDataframe(topWindow, annotData:object, settingsReader:Setti
         #она бывает в начале и в конце, отделена _ или -
         tierName=re.sub(re_start, '', tierName, flags=re.IGNORECASE)
         tierName=re.sub(re_end, '', tierName, flags=re.IGNORECASE)
+        # FIXME hotfix
+        if tierName=='E_Locus':
+            tierName='E_Localization'
 
         # при наличии родительского слоя возвращается более 3 столбцов
         tierDf = DataFrame(data=annot)
