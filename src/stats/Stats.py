@@ -1,5 +1,5 @@
 import os
-import sys
+from datetime import datetime
 
 import numpy
 
@@ -135,7 +135,11 @@ class Stats():
             try:
                 data = multiData.getChannelAndTag(channel, id, format='dataframe')
                 data['EDU'].replace(to_replace='.*', value='AnyEDU', regex=True, inplace=True)
-                data['Words'].replace(to_replace='.*', value='AnyWord', regex=True, inplace=True)
+                data['Words'].replace(to_replace='\w+', value='AnyWord', regex=True, inplace=True)
+                data['Words'].replace(to_replace='\([^ɥ.]+\)', value='(Any_ɯ)', regex=True, inplace=True)
+                data['Words'].replace(to_replace='#.+#', value='Any_#', regex=True, inplace=True)
+                data['Words'].replace(to_replace='{laugh}', value='laugh', regex=True, inplace=True)
+                data['Words'].replace(to_replace='{.+}', value='Any_{}', regex=True, inplace=True)
 
                 file='{0}/{1}_{2}.xls'.format(saveDir,self.settingsReader.getPathAttrById(channel, id),statsType)
                 self.save(file,[self.groupbyListAndDescribe(data, [], 'Duration'),
@@ -517,7 +521,6 @@ class Stats():
 
 
 
-    #TODO subplotting
     #TODO refactor all plot types to viz/methods
     #  это позволит и видоизменять язык надписей без труда, и цвета
     #TODO export plot data to standard format
@@ -539,16 +542,48 @@ class Stats():
         #проверить есть ли разница в величине f-теста с и без z-score
         #zdata1=scipy.stats.zscore(data1, axis=0)
 
-        self.topWindow.setStatus('Sample size is:')
-        #statsmodels.stats.power.FTestAnovaPower.power
-
         ids = ['C', 'N', 'R']
+        labels=['Commenter','Narrator','Reteller']
         grouped = data.groupby(['Id', 'mGesture'])['Duration']
         groupedList = [list(grouped)[0][1], list(grouped)[1][1], list(grouped)[2][1]]
-        plt.title('Плотность распределения длительности жестов (гистограмма)')
-        plt.xlabel('Длительность (с)')
-        plt.ylabel('Плотность')
-        plt.hist(groupedList, bins=20, density=True, cumulative=False, orientation='vertical', rwidth=0.5)
+        groupedDataframe=DataFrame({'C':groupedList[0],'N':groupedList[1],'R':groupedList[2]})
+
+
+        #FIXME grid должен быть только по y
+        #plt.title('Распределение длительности жестов')
+        plt.title('Gesture duration boxplot')
+        #plt.xlabel('Роль участника')
+        plt.xlabel('Subject role')
+        #plt.ylabel('Длительность (с)')
+        plt.ylabel('Duration (s)')
+        plt.boxplot(groupedList, widths=0.25, showfliers=True, labels=labels)
+        # sns.boxplot(data=, hue='Id')
+        plt.minorticks_off()
+        #можно добавить субграфик просто медиан с доверительными интервалами
+        
+
+        #TODO add correlation tests
+        #TODO add regression models
+        # sns.jointplot()
+        # sns.jointplot(, kind='hex')
+        # sns.jointplot(, kind='kde')
+        # plt.scatter()
+        # plt.errorbar()
+        
+        #что-то типа heatmap
+        #f, ax = plt.subplots(figsize=(6, 6))
+        #cmap = sns.cubehelix_palette(as_cmap=True, dark=0, light=1, reverse=True)
+        #sns.kdeplot(df.x, df.y, cmap=cmap, n_levels=60, shade=True);
+
+
+
+        #plt.title('Плотность распределения длительности жестов (гистограмма)')
+        plt.title('Gesture duration histogram')
+        #plt.xlabel('Длительность (с)')
+        plt.xlabel('Duration (s)')
+        #plt.ylabel('Плотность')
+        plt.ylabel('Density')
+        plt.hist(groupedList[0], density=True, cumulative=False, orientation='vertical', rwidth=0.5)
 
         #plt.bar()
         #with sns.axes_style('darkgrid'):
@@ -556,54 +591,102 @@ class Stats():
         #scipy.stats.binned_statistic(, statistic='count', bins=10)
         #scipy.stats.cumfreq(, numbins=10)
 
-        plt.title('Распределение длительности жестов')
-        plt.xlabel('Роль участника')
-        plt.ylabel('Длительность (с)')
-        plt.boxplot(groupedList, widths=0.25, showfliers=True, labels=ids)
-        plt.minorticks_off()
-        #можно добавить субграфик просто медиан с доверительными интервалами
-
         #number of modes ??function
         #проверка сбалансированности измерений
-        # kernel1=scipy.stats.gaussian_kde(data1, bw_method='scott')
-        # kernel2=scipy.stats.gaussian_kde(data2, bw_method='scott')
-        # xs=numpy.linspace(min(data1),max(data1),100)
-        # plt.plot(xs,kernel1(xs))
-        # plt.plot(xs,kernel2(xs))
-        #plt.plot(xs, plt.ylim()[1]*norm_distr_for_data.pdf(xs))
+        plt.figure(figsize=(6, 2))
+        sns.kdeplot(groupedList[0], bw=0.15, shade=False, vertical=False, gridsize=100, cumulative=False, label=labels[0])
+        sns.kdeplot(groupedList[1], bw=0.15, shade=False, vertical=False, gridsize=100, cumulative=False, label=labels[1])
+        sns.kdeplot(groupedList[2], bw=0.15, shade=False, vertical=False, gridsize=100, cumulative=False, label=labels[2])
+        # palette=Greens_d, Blues_d, pastel, Set3
+        # sns.violinplot(data=, hue='Id', bw=0.15, split=True, palette='Set3')	#inner='stick'
+        # sns.swarmplot(data=, color='w', alpha=0.5)
+        plt.title('Gesture duration swarmplot')
+        plt.xlabel('Subject role')
+        plt.ylabel('Duration (s)')
+        sns.swarmplot(data=groupedDataframe)
+        plt.minorticks_off()
 
-        plt.title('Плотность распределения жестов')
-        plt.xlabel('Длительность (с)')
-        plt.ylabel('Плотность')
-        #sns.distplot(, rug=True)
-        sns.kdeplot(groupedList[0], bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=False, label=ids[0])
-        sns.kdeplot(groupedList[1], bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=False, label=ids[1])
-        sns.kdeplot(groupedList[2], bw=0.15, shade=False, vertical=False, gridsize=100, legend=True, cumulative=False, label=ids[2])
+
+        #FIXME рефактор чтобы не было копий этого блока
+        #FIXME all ylim must be same
+        #plt.figure(figsize=(18, 6))
+        plt.suptitle('Density function of gesture duration')
+        plt.subplot(131)
+        subjectNum=0
+        #plt.title('Плотность распределения жестов')
+        plt.title(labels[subjectNum])
+        #plt.xlabel('Длительность (с)')
+        plt.xlabel('Duration (s)')
+        #plt.ylabel('Плотность, накопленная плотность')
+        plt.ylabel('Density, cumulative density')
+        #kernel0=scipy.stats.gaussian_kde(groupedList[subjectNum], bw_method='scott')
+        loc, scale = scipy.stats.norm.fit(groupedList[subjectNum])
+        norm0=scipy.stats.norm(loc=loc, scale=scale)
+        xs=numpy.linspace(min(groupedList[subjectNum]),max(groupedList[subjectNum]),100)
+        #plt.plot(xs,kernel0(xs))
+        sns.distplot(groupedList[subjectNum], kde=True, hist=True, rug=True, vertical=False, label='PDF')
+        sns.kdeplot(groupedList[subjectNum], cumulative=True, label='CDF')
+        plt.plot(xs, plt.ylim()[1]*norm0.pdf(xs), label='normal')
+        plt.legend()
         #
-        #sns.kdeplot(samples[0], cumulative=True)
-        #sns.kdeplot(samples[1], cumulative=True)
-        #sns.kdeplot(samples[2], cumulative=True)
+        plt.subplot(132)
+        subjectNum = 1
+        plt.title(labels[subjectNum])
+        plt.xlabel('Duration (s)')
+        plt.ylabel('')
+        loc, scale = scipy.stats.norm.fit(groupedList[subjectNum])
+        norm1 = scipy.stats.norm(loc=loc, scale=scale)
+        xs = numpy.linspace(min(groupedList[subjectNum]), max(groupedList[subjectNum]), 100)
+        sns.distplot(groupedList[subjectNum], kde=True, hist=True, rug=True, vertical=False, label='PDF')
+        sns.kdeplot(groupedList[subjectNum], cumulative=True, label='CDF')
+        plt.plot(xs, plt.ylim()[1] * norm1.pdf(xs), label='normal')
+        plt.legend()
+        #
+        plt.subplot(133)
+        subjectNum = 2
+        plt.title(labels[subjectNum])
+        plt.xlabel('Duration (s)')
+        plt.ylabel('')
+        loc, scale = scipy.stats.norm.fit(groupedList[subjectNum])
+        norm2 = scipy.stats.norm(loc=loc, scale=scale)
+        xs = numpy.linspace(min(groupedList[subjectNum]), max(groupedList[subjectNum]), 100)
+        sns.distplot(groupedList[subjectNum], kde=True, hist=True, rug=True, vertical=False, label='PDF')
+        sns.kdeplot(groupedList[subjectNum], cumulative=True, label='CDF')
+        plt.plot(xs, plt.ylim()[1] * norm2.pdf(xs), label='normal')
+        plt.legend()
 
-        sns.swarmplot(x='Роль участника', y='Длительность (с)', data=grouped)
-        # plt.scatter()
-        # Q-Q plot можно для разных переменных, чтобы видеть профиль и сравнивать
-        # plt.errorbar()
 
+        #
         #scipy.stats.norm.rvs(size=100)
-        loc, scale = scipy.stats.norm.fit(groupedList[0])
-        norm_distr_for_data=scipy.stats.norm(loc=loc, scale=scale)
-        sns.kdeplot(norm_distr_for_data.pdf(xs), bw=0.15, shade=True, vertical=False, gridsize=100, legend=True, cumulative=False)
-        sns.kdeplot(groupedList[0], cumulative=True)
-        #
-        scipy.stats.kstest(sample1, norm_distr_for_data.cdf)
-        scipy.stats.levene(sample1,sample2)
+        # Q-Q plot можно для разных переменных, чтобы видеть профиль и сравнивать
+        # sns.pairplot()
+        # g = sns.PairGrid(iris)
+        # g.map_diag(sns.kdeplot)
+        # g.map_offdiag(sns.kdeplot, cmap="Blues_d", n_levels=6);
+        scipy.stats.kstest(groupedList[0], norm0.cdf)
+        scipy.stats.kstest(groupedList[1], norm1.cdf)
+        scipy.stats.kstest(groupedList[2], norm2.cdf)
+        scipy.stats.levene(groupedList[0],groupedList[1],groupedList[2])
+        scipy.stats.levene(groupedList[0],groupedList[2])
+        scipy.stats.levene(groupedList[1],groupedList[2])
 
+
+        self.topWindow.setStatus('Sample size is:')
+        #statsmodels.stats.power.FTestAnovaPower.power
         self.topWindow.setStatus('F-test:')
-        scipy.stats.f_oneway(zdata1,zdata2)
+        scipy.stats.f_oneway(groupedList[0],groupedList[1])
+        #scipy.stats.f_oneway(groupedList[0],groupedList[2])
+        #scipy.stats.f_oneway(groupedList[1],groupedList[2])
+
+
+        scipy.stats.kruskal(groupedList[0],groupedList[1],groupedList[2])
+        scipy.stats.mannwhitneyu(groupedList[1],groupedList[2])
+
+
         #effect size
         #scheffe test
 
-        #plt.savefig()
+        plt.savefig('img/{0}_Figure.png'.format(datetime.now().strftime('%Y-%m-%d %H_%M_%S')))
 
 
 
@@ -629,7 +712,18 @@ class Stats():
         #data.fillna('<NA>',inplace=True)
         if type(groupby) is str:
             groupby=[groupby]
-        if len(groupby):
+
+        if len(groupby)==0:
+            onned=data[on]
+            agg1 = onned.agg(['count', 'sum', 'mean', 'std', 'min'])
+            agg2 = onned.agg('quantile', q=[0.25, 0.5, 0.75])
+            agg3 = onned.agg(['max'])
+            sliced = pandas.concat([agg1, agg2, agg3])
+            sliced=DataFrame(sliced).transpose()
+            #recordDur=self.settingsReader.totalDuration()
+            recordDur = numpy.sum([Utils.parseTime(t) for t in data['Interval duration'].unique()])
+            sliced.insert(0, 'interval duration sum', value=recordDur.total_seconds())
+        else:
             #TODO добавить визуализации в виде мелких гистограмм для квартилей в этой статистике
             grouped=data.groupby(groupby, sort=False)
             onned=grouped[on]
@@ -646,12 +740,13 @@ class Stats():
             #возвращаем порядок (интервалов) как был исходно (во второй таблице не работает)
             #sliced=sliced.reindex(index=onned.indices, copy=False)
             sliced.sort_index(inplace=True)
+            #
             slicedCountRat = sliced['count'] / sliced['count'].sum()
             slicedSumRat = sliced['sum'] / sliced['sum'].sum()
             sliced.insert(1, 'count ratio', value=slicedCountRat)
             sliced.insert(3, 'sum ratio', value=slicedSumRat)
             # считаем ratio от длительности интервала
-            if ('Interval' in str(groupby)) and (len(groupby) == 1):
+            if ('Interval' in groupby) and (len(groupby) == 1):
                 #recordDur = self.settingsReader.totalDuration()
                 #for 'channels_appended' dataframes
                 recordDur = numpy.sum([Utils.parseTime(t) for row in grouped['Interval duration'].unique() for t in row]).total_seconds()
@@ -664,27 +759,18 @@ class Stats():
                     #durs.append(self.settingsReader.getDurationById(interval))
                 durs=Series(durs)/numpy.timedelta64(1,'s')
                 durs.index = sliced.index
-                slicedTotalRatByDur = sliced['sum'] / durs
-                sliced.insert(0, 'duration', value=durs)
-                sliced.insert(1, 'duration ratio', value=durs/recordDur)#.total_seconds())
-                sliced.insert(6, 'sum ratio by duration', value=slicedTotalRatByDur)
+                slicedSumRatByDur = sliced['sum'] / durs
+                sliced.insert(0, 'interval duration', value=durs)
+                sliced.insert(1, 'interval duration ratio', value=durs/recordDur)#.total_seconds())
+                sliced.insert(6, 'sum ratio by interval', value=slicedSumRatByDur)
             #считаем ratio по интервалам
-            elif ('Interval' in str(groupby)) and (len(groupby)>1):
+            elif ('Interval' in groupby or 'Id' in groupby or 'Id 2' in groupby) and (len(groupby)>1):
                 ints=[int for int, *level in list(sliced.index)]
                 slicedCountRatByInt=sliced['count'] / list(sliced['count'].groupby('Interval').sum()[ints])
                 slicedSumRatByInt = sliced['sum'] / list(sliced['sum'].groupby('Interval').sum()[ints])
                 sliced.insert(2, 'count ratio by interval', value=slicedCountRatByInt)
                 sliced.insert(5, 'sum ratio by interval', value=slicedSumRatByInt)
-        else:
-            onned=data[on]
-            agg1 = onned.agg(['count', 'sum', 'mean', 'std', 'min'])
-            agg2 = onned.agg('quantile', q=[0.25, 0.5, 0.75])
-            agg3 = onned.agg(['max'])
-            sliced = pandas.concat([agg1, agg2, agg3])
-            sliced=DataFrame(sliced).transpose()
-            #recordDur=self.settingsReader.totalDuration()
-            recordDur = numpy.sum([Utils.parseTime(t) for t in data['Interval duration'].unique()])
-            sliced.insert(0, 'duration', value=recordDur.total_seconds())
+
 
         return sliced
 

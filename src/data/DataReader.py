@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import timedelta
 
 
 import pandas as pd
@@ -11,6 +12,7 @@ import praatio
 from praatio import tgio
 
 from annotations import Annotations
+from data import Utils
 
 
 
@@ -19,7 +21,10 @@ from annotations import Annotations
 
 class DataReader():
 
-    """Helper class that reads and parses Tobii eyetracking data and all types of multidiscourse annotations."""
+    """Helper class that reads and parses Tobii eyetracking data
+    and all types of multidiscourse annotations,
+    and special preprocessed data formats.
+    """
 
     def __init__(self,topWindow):
         self.topWindow = topWindow
@@ -53,6 +58,9 @@ class DataReader():
             self.readManu(settingsReader, multiData)
             self.readCeph(settingsReader, multiData)
             self.readOcul(settingsReader, multiData)
+
+            #special preprocessed data formats
+            self.readManuVocTempo(settingsReader, multiData)
             if settingsReader.check(full=True) and multiData.check():
                 self.topWindow.setStatus('All valuable data read successfully.',color='success')
         except:
@@ -353,7 +361,7 @@ class DataReader():
 
 
     def readOcul(self, settingsReader, multiData) -> None:
-        """Reads ocul annotation from Excel file.
+        """Reads ocul annotation from eaf or Excel file.
 
         :param settingsReader: 
         :param multiData: 
@@ -385,6 +393,40 @@ class DataReader():
                 self.topWindow.setStatus('ERROR: Unknown file format.')
 
             multiData.setNode('ocul', fileElem.get('id'), oculData, settingsReader.getRecordId())
+
+
+
+
+    def readManuVocTempo(self, settingsReader, multiData) -> None:
+        """Parses xlsx file with preprocessed data for further statistic calculation.
+
+        :param settingsReader:
+        :param multiData:
+        :return:
+        """
+        for fileElem in settingsReader.genTypeFile('manu-voc-tempo'):
+            filePath = settingsReader.getPathAttrById('manu-voc-tempo', fileElem.get('id'), absolute=True)
+            fileExt = os.path.splitext(filePath)[1]
+            self.topWindow.setStatus('Reading manu-voc-tempo data ({0})...'.format(os.path.basename(filePath)))
+            if fileExt.lower() == '.xlsx':
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
+                #названия листов надо lowercase принудительно
+                  считываем сначала Ge GeS EDU FRG, затем вторым проходом Ge-EDU GeS-FRG
+                #добавление вычислимых столбцов
+                #учитывание разных имен столбцов
+                #выделение последних двух листов в отдельный формат данных
+                #TimeProp вычислить
+                #добавить EDU-1, +1, +2
+                manuVocTempoData = pd.read_excel(filePath, header=0, sheet_name=None,
+                                                 dtype={'Rec':str,'Tempo':float},
+                                                 converters={'Begin':Utils.parseTime,'Duration':Utils.parseTime})
+                manuVocTempoData = manuVocTempoData.applymap(lambda x: re.sub('\t(.*)', '\\1', str(x)))
+                manuVocTempoData = manuVocTempoData.astype({'Duration': float}, copy=False)
+                manuVocTempoData['Duration'] /= 1000
+            else:
+                self.topWindow.setStatus('ERROR: File format unsupported.')
+
+            multiData.setNode('manu-voc-tempo', fileElem.get('id'), manuVocTempoData, settingsReader.getRecordId())
 
 
 

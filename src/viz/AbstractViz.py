@@ -7,6 +7,7 @@ from SettingsReader import SettingsReader
 
 
 #TODO проверить возможность чертить графики через +gnuplot или !plplot
+#TODO нужно создать график координации каналов
 
 
 

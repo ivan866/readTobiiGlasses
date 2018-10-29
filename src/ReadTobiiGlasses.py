@@ -9,22 +9,27 @@ import logging
 from tkinter import *
 
 
+#TODO switch to plot.ly
 import matplotlib
 import matplotlib.pylab as pylab
 matplotlib.rcParams['backend'] = "TkAgg"
 matplotlib.style.use('bmh') #bmh, ggplot, seaborn, fivethirtyeight
 params = {
           #'font.family': 'arial',
+          'figure.titleweight': 'bold',
           'figure.figsize': (6, 6),
           #'figure.dpi': 150,
+          'savefig.dpi': 300,
           'axes.titlesize': 'medium',
           'axes.titleweight': 'bold',
           'axes.labelsize': 'small',
+          #'axes.labelweight': 'normal',
           #'axes.facecolor': '#E8DDCB',
           'axes.grid': True,
           'axes.grid.which': 'major',    #both, major
           'axes.axisbelow': True,    #line, False
-          #'grid.alpha': 0.8,    #line, False
+          #'grid.linewidth': 0.5,
+          #'grid.alpha': 0.8,
           'xtick.labelsize': 'x-small',
           'ytick.labelsize': 'x-small',
           'xtick.direction': 'out',
@@ -203,6 +208,7 @@ class ReadTobiiGlasses():
         searchMenu.add_cascade(label="Cephalic", menu=cephMenu)
         oculMenu = Menu(searchMenu, tearoff=0)
         oculMenu.add_command(label="Face/hands", command=lambda: self.setStatus('Not implemented.'))
+        #TODO называется template matching algorithm
         oculMenu.add_command(label="N, following R, following C", command=lambda: self.setStatus('Not implemented.'))
         searchMenu.add_cascade(label="Ocular", menu=oculMenu)
         boolMenu = Menu(searchMenu, tearoff=0)

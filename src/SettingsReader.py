@@ -90,6 +90,7 @@ class SettingsReader:
 
 
     #TODO the function needed for the batch must also be selected through the menu
+    # 2018.10.29 all batch methods should be deprecated in favor of new 'append data iteratively' logic
     def selectBatch(self, pivotData:object, stats:object, file:str=None, dataReader:object=None, multiData:object=None)-> None:
         """Parses .bat file and runs every script with every settings file in it. Then combines reports together for summary statistic analysis.
 
@@ -284,6 +285,7 @@ class SettingsReader:
         """
         return self.settings.findall("file[@type='"+type+"']")
 
+    #deprecated?
     def getRecordId(self)->str:
         """Returns the only record id attribute.
 
