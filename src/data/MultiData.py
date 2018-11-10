@@ -38,6 +38,10 @@ class MultiData():
         self.multiData['imu'] = {}
         self.multiData['gyro'] = {}
         self.multiData['accel'] = {}
+
+        #special data types, could be temporary
+        self.multiData['manu-voc-tempo'] = {}
+        self.multiData['manu-voc-reftable'] = {}
         self.empty = True
 
 
@@ -65,10 +69,15 @@ class MultiData():
         """
         if self.settingsReader.check() and self.check():
             channelZeroName = self.settingsReader.substGazeRelatedChannels(channel)
-            for file in self.settingsReader.getTypes(channelZeroName):
+            typeList=self.settingsReader.getTypes(channelZeroName)
+            #2018.11.10 на случай если нет комбинированного типа в настройках
+            #if not len(typeList):
+            #    typeList=self.settingsReader.getTypes(channel)
+            for file in typeList:
                 id=file.get('id')
                 if self.hasChannelById(channel, id):
                     yield (channel, id)
+
 
 
 
@@ -138,11 +147,16 @@ class MultiData():
         #FIXME hotfix
         elif 'Id 2' not in chData.columns:
             chData['Record tag']=pathAttr
-            chData.insert(8, 'Id 2', id)
+            chData.insert(4, 'Id 2', id)
         #elif 'Id 3' not in chData.columns:
-        #    chData.insert(9, 'Id 3', id)
+        #    chData.insert(5, 'Id 3', id)
 
-        return self.tagIntervals(chData, startFrom, ignoreEmpty=ignoreEmpty)
+        # учитываем специальные типы, в которых нет timestamp
+        if channel == 'manu-voc-reftable':
+            return chData
+        else:
+            return self.tagIntervals(chData, startFrom, ignoreEmpty=ignoreEmpty)
+
 
     def getMeansByInterval(self,channel:str,id:str,interval:str):
         """Returns mean value of a channel in particular interval. Useful for calculating baseline noise in _static intervals.
@@ -277,6 +291,22 @@ class MultiData():
             if col not in self.multiData['availColumns'][id]:
                 return False
         return True
+
+
+    def hasTimeColumn(self, channel:str, id:str) -> bool:
+        """Checks if this channel has timestamps on column 0.
+
+        :param channel: type
+        :param id: id
+        :return:
+        """
+        #timestamp position guessed
+        cell=self.multiData[channel][id].iloc[0,0]
+        try:
+            Utils.parseTimeV(cell)
+            return True
+        except:
+            return False
 
 
     def hasChannelById(self,channel:str,id:str) -> bool:

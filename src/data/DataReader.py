@@ -4,6 +4,7 @@ from datetime import timedelta
 
 
 import pandas as pd
+from pandas import DataFrame
 
 
 from pympi.Elan import Eaf
@@ -60,7 +61,9 @@ class DataReader():
             self.readOcul(settingsReader, multiData)
 
             #special preprocessed data formats
+            self.readManuVoc(settingsReader, multiData)
             self.readManuVocTempo(settingsReader, multiData)
+            self.readManuVocRefTables(settingsReader, multiData)
             if settingsReader.check(full=True) and multiData.check():
                 self.topWindow.setStatus('All valuable data read successfully.',color='success')
         except:
@@ -239,6 +242,8 @@ class DataReader():
         :param multiData:
         :return:
         """
+
+        #TODO fully duplicate block
         try:
             for channel in self.topWindow.GAZE_COMPONENTS_LIST:
                 for fileElem in settingsReader.genTypeFile(channel):
@@ -252,6 +257,7 @@ class DataReader():
                         self.topWindow.setStatus('ERROR: Unknown file format.')
 
                     multiData.setNode(channel, fileElem.get('id'), channelData)
+
         except:
             self.topWindow.reportError()
             self.topWindow.setStatus('ERROR: Parsing gaze components failed. Omitting from analysis.')
@@ -397,36 +403,140 @@ class DataReader():
 
 
 
+    def readManuVoc(self, settingsReader, multiData) -> None:
+        """Parses xlsx file with preprocessed data, for further statistic calculation.
+
+        :param settingsReader:
+        :param multiData:
+        :return:
+        """
+        for fileElem in settingsReader.genTypeFile('manu-voc'):
+            filePath = settingsReader.getPathAttrById('manu-voc', fileElem.get('id'), absolute=True)
+            fileExt = os.path.splitext(filePath)[1]
+            self.topWindow.setStatus('Reading manu-voc data ({0})...'.format(os.path.basename(filePath)))
+            if fileExt.lower() == '.xlsx' or fileExt.lower() == '.xls':
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
+                #добавить EDU-1, +1, +2
+                manuVocData = pd.read_excel(filePath, header=0, sheet_name=None,
+                                                 dtype={'Rec':str,'Tempo':float},
+                                                 converters={'Begin':Utils.parseTime,'Duration':Utils.parseTime})
+
+                manuVocTempoSheets=DataFrame(columns=['Begin','Duration'])
+                manuVocRefTableSheets=DataFrame(columns=['EventId','RefId'])
+                try:
+                    for k in manuVocData.keys():
+                        sheet=manuVocData[k]
+                        #проверяем что Rec и Code соответствуют своему файлу, хотя по сути они нужны только как подсказка аннотатору при формировании экселевского файла
+                        if not all(sheet['Code'].apply(lambda x: x.lower()) == fileElem.get('id').lower()) or not all(sheet['Rec'].apply(lambda x: int(x)) == int(fileElem.get('id2'))):
+                            self.topWindow.setStatus('WARNING: Rec or Code column does not correspond to id tags in settings. Aborting.')
+                            raise ValueError
+
+                        #берем только нужные 4 листа, учитывая что названия могут быть в разном регистре в разных файлах
+                        if k.lower() == 'ge' or k.lower() == 'ges' or k.lower() == 'edu' or k.lower() == 'frg':
+                            #учитываем что названия столбцов могут быть разные в разных файлах
+                            sheet.rename(mapper={'Gesture': 'EventId', 'Ge':'EventId',
+                                                 'GeS': 'EventId',
+                                                 'EDU': 'EventId',
+                                                 'FRG': 'EventId'},
+                                         axis='columns', inplace=True)
+
+                            #ставим timestamp на первое место - на это рассчитываюи многие функции в multidata.py
+                            #переводим в секунды, как во всех остальных типах файлов
+                            sheet.insert(0, 'Begin', sheet.pop('Begin').apply(lambda x: float(x.total_seconds())))
+                            sheet.insert(1, 'Duration', sheet.pop('Duration').apply(lambda x: float(x.total_seconds())))
+
+                            # добавляем вычисляемые столбцы
+                            sheet['TimeProp'] = 60 / sheet['Duration']
+
+                            #соединяем однородные листы в один dataframe
+                            manuVocTempoSheets = manuVocTempoSheets.merge(sheet, how='outer', sort=True, copy=False)
+                        elif k.lower() == 'ge-edu' or k.lower() == 'ges-frg':
+                            sheet.rename(mapper={'Gesture': 'EventId', 'Ge':'EventId', 'GE':'EventId',
+                                                 'GeS': 'EventId',
+                                                 'EDU': 'RefId',
+                                                 'FRG': 'RefId'},
+                                         axis='columns', inplace=True)
+                            manuVocRefTableSheets = manuVocRefTableSheets.merge(sheet, how='outer', sort=True, copy=False)
+                except ValueError:
+                    self.topWindow.setStatus('WARNING: Probably incorrect Code or Rec values, or some non-uniform datablocks found in tables. Consider manual doublechecking your datafile.')
+                    self.topWindow.reportError()
+                    return None
+                except AttributeError:
+                    self.topWindow.setStatus('ERROR: Probably Rec or Code columns have some empty cells. Aborting.')
+                    raise
+
+            else:
+                self.topWindow.setStatus('ERROR: File format unsupported.')
+
+            multiData.setNode('manu-voc-tempo', fileElem.get('id'), manuVocTempoSheets, settingsReader.getRecordId())
+            multiData.setNode('manu-voc-reftable', fileElem.get('id'), manuVocRefTableSheets, settingsReader.getRecordId())
+
     def readManuVocTempo(self, settingsReader, multiData) -> None:
-        """Parses xlsx file with preprocessed data for further statistic calculation.
+        """Reads manu-voc-tempo from appended csv.
 
         :param settingsReader:
         :param multiData:
         :return:
         """
         for fileElem in settingsReader.genTypeFile('manu-voc-tempo'):
-            filePath = settingsReader.getPathAttrById('manu-voc-tempo', fileElem.get('id'), absolute=True)
+            filePath=settingsReader.getPathAttrById('manu-voc-tempo',fileElem.get('id'),absolute=True)
             fileExt = os.path.splitext(filePath)[1]
             self.topWindow.setStatus('Reading manu-voc-tempo data ({0})...'.format(os.path.basename(filePath)))
-            if fileExt.lower() == '.xlsx':
+            if fileExt.lower()=='.csv':
                 self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
-                #названия листов надо lowercase принудительно
-                  считываем сначала Ge GeS EDU FRG, затем вторым проходом Ge-EDU GeS-FRG
-                #добавление вычислимых столбцов
-                #учитывание разных имен столбцов
-                #выделение последних двух листов в отдельный формат данных
-                #TimeProp вычислить
-                #добавить EDU-1, +1, +2
-                manuVocTempoData = pd.read_excel(filePath, header=0, sheet_name=None,
-                                                 dtype={'Rec':str,'Tempo':float},
-                                                 converters={'Begin':Utils.parseTime,'Duration':Utils.parseTime})
-                manuVocTempoData = manuVocTempoData.applymap(lambda x: re.sub('\t(.*)', '\\1', str(x)))
-                manuVocTempoData = manuVocTempoData.astype({'Duration': float}, copy=False)
-                manuVocTempoData['Duration'] /= 1000
+                manuVocTempoData = pd.read_csv(filePath, sep='\t')
             else:
-                self.topWindow.setStatus('ERROR: File format unsupported.')
+                self.topWindow.setStatus('ERROR: Unknown file format.')
 
             multiData.setNode('manu-voc-tempo', fileElem.get('id'), manuVocTempoData, settingsReader.getRecordId())
+
+    def readManuVocRefTables(self, settingsReader, multiData) -> None:
+        """Reads manu-voc-reftables from appended csv.
+
+        :param settingsReader:
+        :param multiData:
+        :return:
+        """
+        for fileElem in settingsReader.genTypeFile('manu-voc-reftable'):
+            filePath=settingsReader.getPathAttrById('manu-voc-reftable',fileElem.get('id'),absolute=True)
+            fileExt = os.path.splitext(filePath)[1]
+            self.topWindow.setStatus('Reading manu-voc-reftable data ({0})...'.format(os.path.basename(filePath)))
+            if fileExt.lower()=='.csv':
+                self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
+                manuVocReftableData = pd.read_csv(filePath, sep='\t')
+            else:
+                self.topWindow.setStatus('ERROR: Unknown file format.')
+
+            multiData.setNode('manu-voc-reftable', fileElem.get('id'), manuVocReftableData, settingsReader.getRecordId())
+
+
+    #def readManuVocComponents(self, settingsReader, multiData) -> None:
+    #    """Reads manu-voc-tempo, manu-voc-reftable, etc.
+    #
+    #    :param settingsReader:
+    #    :param multiData:
+    #    :return:
+    #   # """
+    #    try:
+    #        for channel in self.topWindow.MANU_VOC_COMPONENTS_LIST:
+    #            for fileElem in settingsReader.genTypeFile(channel):
+    #                filePath=settingsReader.getPathAttrById(channel, fileElem.get('id'), absolute=True)
+    #                fileExt = os.path.splitext(filePath)[1]
+    #                if fileExt.lower()=='.csv':
+    #                    self.topWindow.setStatus('Reading {0} ({1})...'.format(channel, os.path.basename(filePath)))
+    #                    self.topWindow.setStatus('Parsing {0} file.'.format(fileExt))
+    #                    channelData = pd.read_csv(filePath, sep='\t')
+    #                else:
+    #                    self.topWindow.setStatus('ERROR: Unknown file format.')
+    #
+    #                multiData.setNode(channel, fileElem.get('id'), channelData)
+    #
+    #    except:
+    #        self.topWindow.reportError()
+    #        self.topWindow.setStatus('ERROR: Parsing manu-voc components failed. Omitting from analysis.')
+    #        raise
+
+
 
 
 

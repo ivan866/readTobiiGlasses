@@ -113,7 +113,8 @@ class ReadTobiiGlasses():
 
         self.PROJECT_NAME='Read Tobii Glasses'
         self.PROJECT_NAME_SHORT='RTG'
-        self.GAZE_COMPONENTS_LIST=['fixations','saccades','eyesNotFounds','unclassifieds',"imu","gyro","accel"]
+        self.GAZE_COMPONENTS_LIST=['fixations','saccades','eyesNotFounds','unclassifieds','imu','gyro','accel']
+        self.MANU_VOC_COMPONENTS_LIST=['manu-voc-tempo','manu-voc-reftable']
         self.VIDEO_FRAMERATE=100
         self.PYPER_MANU_ARGS=[128,100,2000,1000,'manu_output']
         self.logger.debug('creating tk root..')

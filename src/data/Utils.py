@@ -54,7 +54,7 @@ def parseTimeV(data:Series)->Series:
     :param data: pandas Series object.
     :return: Same object with values converted to timedelta.
     """
-    if data.name=='Recording timestamp' or data.name=='Begin_Time' or data.name=='Begin Time - ss.msec':
+    if data.name=='Recording timestamp' or data.name=='Begin_Time' or data.name=='Begin Time - ss.msec' or data.name=='Begin':
         return pandas.to_timedelta(data.astype(float), unit='s')
     else:
         return pandas.to_datetime(data.astype(str), infer_datetime_format=True)-date.today()

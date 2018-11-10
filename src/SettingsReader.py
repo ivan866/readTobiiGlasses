@@ -265,6 +265,8 @@ class SettingsReader:
         #FIXME hotfix, may be non-universal
         if channel in self.topWindow.GAZE_COMPONENTS_LIST and self.hasType('gaze') and not self.hasType('fixations'):
             return 'gaze'
+        elif channel in self.topWindow.MANU_VOC_COMPONENTS_LIST and self.hasType('manu-voc') and not self.hasType('manu-voc-tempo'):
+            return 'manu-voc'
         else:
             return channel
 
@@ -324,14 +326,13 @@ class SettingsReader:
         """
         #FIXME где уже была использована эта функция, но без учета absolute
         typeZeroName=self.substGazeRelatedChannels(type)
-        file=self.getTypeById(typeZeroName,id)
-        #if file:
-        path=file.get('path')
         #FIXME hotfix
+        file = self.getTypeById(typeZeroName,id)
+        #if file:
+        path = file.get('path')
         #gaze channel absent in settings
         #else:
-        #    file = self.getTypeById(type, id)
-        #    path = file.get('path')
+        #    path = self.getTypeById(type, id).get('path')
         if absolute:
             return '{0}/{1}'.format(self.dataDir, path)
         else:
