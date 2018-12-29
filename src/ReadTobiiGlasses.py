@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 import argparse
 import sys
+import time
 from datetime import datetime
 import webbrowser
+import winsound
+
 
 import logging
 
 from tkinter import *
 
 
-#TODO switch to plot.ly
+
 import matplotlib
 import matplotlib.pylab as pylab
 matplotlib.rcParams['backend'] = "TkAgg"
@@ -49,9 +52,17 @@ params = {
           'boxplot.showcaps': True,
           'boxplot.showfliers': False,
           'boxplot.meanline': False,
+          'boxplot.patchartist': True,
+          'boxplot.boxprops.linewidth': 1,
+          'boxplot.flierprops.linewidth': 0.25,
+          'boxplot.whiskerprops.linewidth': 1,
+          'boxplot.capprops.linewidth': 1,
+          'boxplot.medianprops.linewidth': 0.5,
+          'boxplot.meanprops.linewidth': 0.5,
           'errorbar.capsize': 9
           }
 pylab.rcParams.update(params)
+
 
 
 from SettingsReader import SettingsReader
@@ -75,6 +86,8 @@ from viz.video.AviSynthPlayer import AviSynthPlayer
 
 
 
+
+
 class ReadTobiiGlasses():
 
     """Main class of the utility.
@@ -84,7 +97,7 @@ class ReadTobiiGlasses():
     """
 
 
-    def __init__(self,gui:bool=True):
+    def __init__(self, gui:bool=True):
         """Setup application and populate menu.
         
         :param gui: Whether to start gui.
@@ -103,7 +116,7 @@ class ReadTobiiGlasses():
         logging.basicConfig(filename='readTobiiGlasses.log',
                             level=logging.DEBUG,
                             format=self.LOG_FORMAT)
-        self.logger=logging.getLogger()
+        self.logger = logging.getLogger()
 
         def rerouteExceptions(type, value, traceback):
             self.logger.exception("{0}, {1}, {2}".format(str(type), str(value), str(traceback)))
@@ -111,12 +124,14 @@ class ReadTobiiGlasses():
         #sys.excepthook = rerouteExceptions
 
 
+
+
         self.PROJECT_NAME='Read Tobii Glasses'
         self.PROJECT_NAME_SHORT='RTG'
         self.GAZE_COMPONENTS_LIST=['fixations','saccades','eyesNotFounds','unclassifieds','imu','gyro','accel']
         self.MANU_VOC_COMPONENTS_LIST=['manu-voc-tempo','manu-voc-reftable']
-        self.VIDEO_FRAMERATE=100
-        self.PYPER_MANU_ARGS=[128,100,2000,1000,'manu_output']
+        self.VIDEO_FRAMERATE = 100
+        self.PYPER_MANU_ARGS = [128,100,2000,1000,'manu_output']
         self.logger.debug('creating tk root..')
         self.root = Tk()
         self.root.geometry('640x400')
@@ -124,6 +139,7 @@ class ReadTobiiGlasses():
 
         self.rootMenu = Menu(self.root)
         self.root.config(menu=self.rootMenu)
+
 
 
         self.logger.debug('creating report and status widgets...')
@@ -137,6 +153,8 @@ class ReadTobiiGlasses():
         self.appendReport('ReadTobiiGlasses started.')
         self.appendReport('Interactive GUI session.')
         self.report.pack(side=LEFT,anchor=NW,fill=BOTH)
+
+
 
 
         #setup other classes
@@ -156,6 +174,8 @@ class ReadTobiiGlasses():
         self.spectrogram = Spectrogram(self)
 
         self.aviSynthPlayer = AviSynthPlayer()
+
+
 
 
         self.logger.debug('populating menus...')
@@ -182,6 +202,8 @@ class ReadTobiiGlasses():
         dataMenu.add_cascade(label="Export", menu=exportMenu)
         self.rootMenu.add_cascade(label="Data", menu=dataMenu)
 
+
+
         annotationMenu = Menu(self.rootMenu, tearoff=0)
         annotationMenu.add_command(label="Sanity check", command=lambda: self.setStatus('Not implemented.'), state=DISABLED)
         annotationMenu.add_command(label="Detect ceph motions (gyro)", command=lambda: Annotations.imuToEaf(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
@@ -190,6 +212,8 @@ class ReadTobiiGlasses():
         annotationMenu.add_command(label="Motion detection quality assessment", command=lambda: Annotations.qualityAssessment(self, self.multiData,settingsReader=self.settingsReader,dataExporter=self.dataExporter))
         annotationMenu.add_command(label="Voc/ocul transcript", command=lambda: self.setStatus('Not implemented.'))
         self.rootMenu.add_cascade(label="Annotation", menu=annotationMenu)
+
+
 
         searchMenu = Menu(self.rootMenu, tearoff=0)
         gazeMenu = Menu(searchMenu, tearoff=0)
@@ -220,13 +244,20 @@ class ReadTobiiGlasses():
         searchMenu.add_command(label="Execute SQL query", command=lambda: self.setStatus('Not implemented.'))
         self.rootMenu.add_cascade(label="Search", menu=searchMenu)
 
+
+
         statsMenu = Menu(self.rootMenu, tearoff=0)
         statsMenu.add_command(label="Descriptive",
                               command=lambda: self.stats.descriptive(self.multiData, dataExporter=self.dataExporter))
         statsMenu.add_command(label="Difference", command=lambda: self.stats.difference(self.pivotData))
         statsMenu.add_command(label="ANOVA", command=lambda: self.stats.ANOVA_stats(self.multiData, self.pivotData, dataExporter=self.dataExporter))
+        specialStatsMenu = Menu(statsMenu, tearoff=0)
+        specialStatsMenu.add_command(label="manu-voc-tempo", command=lambda: self.stats.manuVocTempoStats(self.multiData, dataExporter=self.dataExporter))
+        statsMenu.add_cascade(label="Special", menu=specialStatsMenu)
         # statsMenu.add_command(label="Save report to Excel", command=self.stats.save)
         self.rootMenu.add_cascade(label="Statistic", menu=statsMenu)
+
+
 
         vizMenu = Menu(self.rootMenu, tearoff=0)
         plotMenu = Menu(vizMenu, tearoff=0)
@@ -252,21 +283,23 @@ class ReadTobiiGlasses():
         self.rootMenu.add_cascade(label="Media", menu=vizMenu)
 
 
-        helpMenu = Menu(self.rootMenu, tearoff=0)
-        manualsMenu = Menu(helpMenu, tearoff=0)
-        manualsMenu.add_command(label="Tobii coordinate systems", command=lambda: self.gotoWeb('coordSys'))
-        manualsMenu.add_command(label="Tobii gyroscope data format", command=lambda: self.gotoWeb('glasses2API'))
-        manualsMenu.add_command(label="JAI Go camera", command=lambda: self.gotoWeb('jaiCameras'))
-        helpMenu.add_cascade(label="Manuals", menu=manualsMenu)
-        helpMenu.add_command(label="FAQ", command=lambda: self.gotoWeb('FAQ'))
-        helpMenu.add_command(label="Wiki", command=lambda: self.gotoWeb('wiki'))
-        helpMenu.add_command(label="Repository", command=lambda: self.gotoWeb('repo'))
-        helpMenu.add_command(label="Submit a bug...", command=lambda: self.gotoWeb('bugs'))
-        self.rootMenu.add_cascade(label="Help", menu=helpMenu)
+        #helpMenu = Menu(self.rootMenu, tearoff=0)
+        #manualsMenu = Menu(helpMenu, tearoff=0)
+        #manualsMenu.add_command(label="Tobii coordinate systems", command=lambda: self.gotoWeb('coordSys'))
+        #manualsMenu.add_command(label="Tobii gyroscope data format", command=lambda: self.gotoWeb('glasses2API'))
+        #manualsMenu.add_command(label="JAI Go camera", command=lambda: self.gotoWeb('jaiCameras'))
+        #helpMenu.add_cascade(label="Manuals", menu=manualsMenu)
+        #helpMenu.add_command(label="FAQ", command=lambda: self.gotoWeb('FAQ'))
+        #helpMenu.add_command(label="Wiki", command=lambda: self.gotoWeb('wiki'))
+        #helpMenu.add_command(label="Repository", command=lambda: self.gotoWeb('repo'))
+        #helpMenu.add_command(label="Submit a bug...", command=lambda: self.gotoWeb('bugs'))
+        #self.rootMenu.add_cascade(label="Help", menu=helpMenu)
 
-        self.logger.debug('starting tk main loop...')
+        #self.logger.debug('starting tk main loop...')
         if gui:
             self.root.mainloop()
+
+
 
 
 
@@ -285,10 +318,13 @@ class ReadTobiiGlasses():
 
         if 'error' in text.lower() or 'unknown' in text.lower() or 'fail' in text.lower() or 'there is no' in text.lower() or color=='error':
             color='#FF0000'
+            winsound.Beep(120, 400)
         elif 'warn' in text.lower() or color=='warning':
             color='#CC4400'
+            winsound.Beep(200, 150)
         elif 'success' in text.lower() or 'complete' in text.lower() or color=='success':
             color='#006600'
+            winsound.Beep(2000, 150)
         #TODO ? can add font style for different messages
         #TODO add binding to text to open stat reports
 
@@ -298,6 +334,7 @@ class ReadTobiiGlasses():
         self.report.tag_config('line_'+str(self.report_line_num),foreground=color)
         self.report.see(END)
         self.report.config(state=DISABLED)
+
 
     def setStatus(self,text:str,color:str='#000000') -> None:
         """Set status bar text from other code.
@@ -311,6 +348,7 @@ class ReadTobiiGlasses():
         self.appendReport(text,color=color)
         self.status.config(text=text)
         self.root.update_idletasks()
+
 
     def reportError(self)->None:
         """Prints current Exception info to report field.
@@ -333,28 +371,28 @@ class ReadTobiiGlasses():
 
 
     #TODO add JAI camera SDK website
-    def gotoWeb(self,page:str)->None:
-        """Opens wiki page on GitHub.
-        
-        :param page: Page tag to open browser for.
-        :return: 
-        """
-        if page=='repo':
-            webbrowser.open('https://gitlab.com/ivan866/readTobiiGlasses')
-        elif page=='FAQ':
-            webbrowser.open('https://gitlab.com/ivan866/readTobiiGlasses/wikis/FAQ')
-        elif page=='wiki':
-            webbrowser.open('https://gitlab.com/ivan866/readTobiiGlasses/wikis')
-        elif page=='bugs':
-            webbrowser.open('https://gitlab.com/ivan866/readTobiiGlasses/issues/new')
-        elif page=='glasses2API':
-            webbrowser.open('http://tobiipro.com/product-listing/tobii-pro-glasses-2-sdk/')
-        elif page=='coordSys':
-            webbrowser.open('http://developer.tobiipro.com/commonconcepts.html')
-        elif page=='jaiCameras':
-            webbrowser.open('https://stemmer-imaging.co.uk/en/products/series/jai-go/')
-        else:
-            self.setStatus('Unknown URL.')
+    ##def gotoWeb(self,page:str)->None:
+    ##    """Opens wiki page on GitHub.
+    ##
+    ##    :param page: Page tag to open browser for.
+    ##    :return:
+    ##    """
+    ##    if page=='repo':
+    ##        webbrowser.open('https://gitlab.com/ivan866/readTobiiGlasses')
+    ##    elif page=='FAQ':
+    ##        webbrowser.open('https://gitlab.com/ivan866/readTobiiGlasses/wikis/FAQ')
+    ##    elif page=='wiki':
+    ##        we##bbrowser.open('https://gitlab.com/ivan866/readTobiiGlasses/wikis')
+    ##    elif page=='bugs':
+    ##        webbrowser.open('https://gitlab.com/ivan866/readTobiiGlasses/issues/new')
+    ##    elif page=='glasses2API':
+    ##        webbrowser.open('http://tobiipro.com/product-listing/tobii-pro-glasses-2-sdk/')
+    ##    elif page=='coordSys':
+    ##        webbrowser.open('http://developer.tobiipro.com/commonconcepts.html')
+    ##    elif page=='jaiCameras':
+    ##        webbrowser.open('https://stemmer-imaging.co.uk/en/products/series/jai-go/')
+    ##    else:
+    ##        self.setStatus('Unknown URL.')
 
 
 
@@ -386,6 +424,13 @@ class ReadTobiiGlasses():
         if not serial:
             sys.exit()
 
+    def exitMain(self):
+        """A hook for remote shutdown."""
+        print('Exiting main program.')
+        sys.exit()
+
+
+
 
 
 
@@ -412,6 +457,8 @@ def main():
     manuGroup.add_argument('--manu-args', nargs='+', default=[128,100,2000,1000,'annot'], help='Parameters for the manu CLI tool, e.g. threshold, etc.')
     args = parser.parse_args()
 
+
+
     #with or without command line parameters
     #FIXME если в командной строке указан только файл настроек, какая это сессия считается?
     if args.settings_file:# or args.batch_file:
@@ -426,6 +473,8 @@ def main():
         #    self.settingsReader.selectBatch(pivotData=self.pivotData, stats=self.stats, file=args.batch_file)
     else:
         ReadTobiiGlasses()
+
+
 
 if __name__ == "__main__":
     main()

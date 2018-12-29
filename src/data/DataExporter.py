@@ -8,9 +8,14 @@ import pandas
 from pandas import DataFrame
 #import pandas.io.excel.xlsx.writer
 
-import sqlalchemy
+import PyMySQL, sqlalchemy
+
+
+
 
 from SettingsReader import SettingsReader
+
+
 
 
 
@@ -19,15 +24,16 @@ class DataExporter():
 
     """Helper class that writes to files some particularly data channels useful for further data analysis."""
 
-    def __init__(self,topWindow):
+    def __init__(self, topWindow):
         self.topWindow = topWindow
-        self.settingsReader=SettingsReader.getReader()
+        self.settingsReader = SettingsReader.getReader()
         self.saveDir=''
         self.colsUnperceptable=['Timedelta','Record tag','Id']
 
 
 
-    def createDir(self,prefix:str='output',serial:bool=False,savePath:str='',dryRun:bool=False)->str:
+
+    def createDir(self, prefix:str='output', serial:bool=False, savePath:str='', dryRun:bool=False) -> str:
         """Creates timestamped directory to save data into.
 
         :param prefix: directory name prefix.
@@ -55,6 +61,7 @@ class DataExporter():
             raise ValueError('No settings found')
 
 
+
     def copyMeta(self,saveDir:str='')->None:
         """Writes settings and report to previously created save directory.
 
@@ -69,6 +76,9 @@ class DataExporter():
             self.settingsReader.save(metaDir)
             self.topWindow.setStatus('Settings included for reproducibility.')
             self.topWindow.saveReport(metaDir)
+
+
+
 
 
 
@@ -113,6 +123,7 @@ class DataExporter():
                 self.copyMeta()
             else:
                 self.topWindow.setStatus('There is no data to write.')
+
 
 
 
@@ -180,13 +191,13 @@ class DataExporter():
                     stacked=stacked.append(data, sort=False)
                     #appended=True
 
-                if format=="csv" and len(stacked):
+                if format == "csv" and len(stacked):
                     stacked.to_csv(file, sep='\t', header=True, index=False, mode='w')
-                elif format=='xlsx' and len(stacked):
+                elif format == 'xlsx' and len(stacked):
                     stacked.to_excel(writer, header=True, index=False, sheet_name=channel, startrow=0, freeze_panes=(1,0), engine='pandas.io.excel.xlsx.writer')
                     #startrow = startrow + data.shape[0]
 
-            if format=='xlsx':
+            if format == 'xlsx':
                 writer.save()
 
             self.topWindow.setStatus('Done. Intervals trimmed and tagged.', color='success')
@@ -197,9 +208,10 @@ class DataExporter():
 
 
     #TODO SQL export issue
+    # import MySQLdb
     #TODO надо почитать как вообще комбинируются запросы в текстовое выражение, какие приемы существуют
     #TODO форму преобразования в таблицы см. в описании issue
-    def exportSQL(self,multiData:object)->None:
+    def exportSQL(self, multiData:object) -> None:
         """Writes all data to SQl database using SQLite.
 
         :param multiData: multiData object to write

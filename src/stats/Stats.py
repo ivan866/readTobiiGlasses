@@ -18,6 +18,13 @@ import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import plotly.offline as py
+import plotly.graph_objs as go
+from plotly import tools
+import plotly.figure_factory as ff
+#py.init_notebook_mode(connected=True)
+
+
 import statsmodels
 
 
@@ -39,6 +46,9 @@ class Stats():
     def __init__(self,topWindow):
         self.topWindow = topWindow
         self.settingsReader=SettingsReader.getReader()
+
+        # количество экспортируемых таблиц со статистикой
+        #self.groupedByNum = 0
 
 
 
@@ -458,6 +468,106 @@ class Stats():
 
 
 
+        #----
+        #SPECIAL TYPES
+        messageShown = False
+        for (channel, id) in multiData.genChannelIds(channel='manu-voc-tempo'):
+            if not messageShown:
+                self.topWindow.setStatus('Now doing {0} channel.'.format(channel))
+                messageShown = True
+            try:
+                data = multiData.getChannelAndTag(channel, id, format='dataframe')
+                #делим данные по типам событий
+                dataGesture = data.loc[data['EventType']=='Gesture']
+                dataGeStroke = data.loc[data['EventType']=='GeStroke']
+                dataEDU = data.loc[data['EventType']=='EDU']
+                dataFRG = data.loc[data['EventType']=='FRG']
+
+                file = '{0}/{1}_{2}.xls'.format(saveDir, self.settingsReader.getPathAttrById(channel, id), statsType)
+                #TODO the sequence can be generated as samples from the set without ?repeat, all possible combinations, the empty ones will be automatically omitted
+                self.save(file, [self.groupbyListAndDescribe(dataGesture, [], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Id'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Id 2'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Id', 'Id 2'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Id', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Id 2', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Id', 'Id 2', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Interval'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Interval', 'Id'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Interval', 'Id 2'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Interval', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Interval', 'Id', 'Id 2'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Interval', 'Id', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Interval', 'Id 2', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGesture, ['Interval', 'Id', 'Id 2', 'LenType'], ['Duration', 'TimeProp']),
+
+                                 self.groupbyListAndDescribe(dataGeStroke, [], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Id'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Id 2'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Id', 'Id 2'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Id', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Id 2', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Id', 'Id 2', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Interval'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Interval', 'Id'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Interval', 'Id 2'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Interval', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Interval', 'Id', 'Id 2'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Interval', 'Id', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Interval', 'Id 2', 'LenType'], ['Duration', 'TimeProp']),
+                                 self.groupbyListAndDescribe(dataGeStroke, ['Interval', 'Id', 'Id 2', 'LenType'], ['Duration', 'TimeProp']),
+
+                                 self.groupbyListAndDescribe(dataEDU, [], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Id'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Id 2'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Id', 'Id 2'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Id', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Id 2', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Id', 'Id 2', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Interval'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Interval', 'Id'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Interval', 'Id 2'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Interval', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Interval', 'Id', 'Id 2'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Interval', 'Id', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Interval', 'Id 2', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataEDU, ['Interval', 'Id', 'Id 2', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+
+                                 self.groupbyListAndDescribe(dataFRG, [], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Id'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Id 2'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Id', 'Id 2'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Id', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Id 2', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Id', 'Id 2', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Interval'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Interval', 'Id'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Interval', 'Id 2'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Interval', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Interval', 'Id', 'Id 2'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Interval', 'Id', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Interval', 'Id 2', 'TempoType'], ['Duration', 'TimeProp', 'Tempo']),
+                                 self.groupbyListAndDescribe(dataFRG, ['Interval', 'Id', 'Id 2', 'TempoType'], ['Duration', 'TimeProp', 'Tempo'])
+                                 ],
+                          sheets=['Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture', 'Gesture',
+                                  'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke', 'GeStroke',
+                                  'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU', 'EDU',
+                                  'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG', 'FRG'],
+                          serial=serial)
+            #except AttributeError:
+            #    self.topWindow.setStatus('ERROR: Probably bad or no data. Skipping {0} channel for id {1}.'.format(channel, id))
+            except KeyError:
+                self.topWindow.reportError()
+                self.topWindow.setStatus('ERROR: Probably unknown column name. Skipping {0} channel for id {1}.'.format(channel, id), color='error')
+                self.topWindow.setStatus('Try searching for mistakes, typos and inconsistent naming schemes in your data.', color='error')
+
+
+
+
 
         self.topWindow.setStatus('Descriptive statistic reports saved to {0}.'.format(saveDir),color='success')
         dataExporter.copyMeta()
@@ -516,6 +626,12 @@ class Stats():
         # pyplot.legend(labels=['рассказ','разговор','пересказ'])
         # pyplot.grid(True)
         # pyplot.tight_layout()
+        #
+        # ??
+        # tools=, tooltips=
+        # figure.line(, line_color="#FF0000", line_width=8, alpha=0.7, legend="PDF")
+        # figure.legend.location='center_right'
+        # figure.legend.background_fill_color='darkgrey'
         pass
 
 
@@ -524,7 +640,7 @@ class Stats():
     #TODO refactor all plot types to viz/methods
     #  это позволит и видоизменять язык надписей без труда, и цвета
     #TODO export plot data to standard format
-    #TODO bokeh html interactive output
+    #TODO bokeh html interactive output, or PLOTLY
     def ANOVA_stats(self, multiData:object, pivotData:object, dataExporter:object)->None:
         """Analysis of variance on distribution data.
 
@@ -691,6 +807,104 @@ class Stats():
 
 
 
+    def manuVocTempoStats(self, multiData: object, dataExporter: object) -> None:
+        """Different statistics for special preprocessed 'manu-voc-tempo' data type.
+
+        :param multiData:
+        :param dataExporter:
+        :return:
+        """
+        self.topWindow.setStatus('Special statistics: manu-voc-tempo requested.')
+        data = multiData.getChannelById('manu-voc-tempo', 'all')
+        dataEDU=data.loc[data['EventType']=='EDU']
+        dataFRG=data.loc[data['EventType']=='FRG']
+
+        EDUgrouped = dataEDU.groupby(['Interval', 'Id'])['Tempo']
+        EDUgroupedN = [list(EDUgrouped)[1][1], list(EDUgrouped)[4][1]]
+        EDUgroupedR = [list(EDUgrouped)[5][1], list(EDUgrouped)[6][1]]
+        #
+        FRGgrouped = dataFRG.groupby(['Interval', 'Id'])['Tempo']
+        FRGgroupedN = [list(FRGgrouped)[1][1], list(FRGgrouped)[4][1]]
+        FRGgroupedR = [list(FRGgrouped)[5][1], list(FRGgrouped)[6][1]]
+
+        plt.subplot(221)
+        plt.title('Narrator\nEDU')
+        plt.axis(ymin=-50,ymax=1500)
+        plt.ylabel('Tempo')
+        bplot1 = plt.boxplot(EDUgroupedN, widths=0.25, showfliers=True, labels=['',''])
+        plt.suptitle('TEMPO BOXPLOT')
+        plt.grid(True)
+        #
+        plt.subplot(222)
+        plt.title('Reteller\nEDU')
+        plt.axis(ymin=-50, ymax=1500)
+        bplot2 = plt.boxplot(EDUgroupedR, widths=0.25, showfliers=True, labels=['',''])
+        #
+        plt.subplot(223)
+        plt.title('FRG')
+        plt.axis(ymin=-50, ymax=1500)
+        plt.xlabel('Interval')
+        plt.ylabel('Tempo')
+        bplot3 = plt.boxplot(FRGgroupedN, widths=0.25, showfliers=True, labels=['Telling', 'Conversation'])
+        #
+        plt.subplot(224)
+        plt.title('FRG')
+        plt.axis(ymin=-50, ymax=1500)
+        plt.xlabel('Interval')
+        bplot4 = plt.boxplot(FRGgroupedR, widths=0.25, showfliers=True, labels=['Conversation', 'Retelling'])
+        #
+        colors = ['green','blue','blue','red','green','blue','blue','red']
+        colInd=0
+        for bplot in (bplot1, bplot2, bplot3, bplot4):
+            for patch in bplot['boxes']:
+                patch.set_facecolor(colors[colInd])
+                colInd = colInd+1
+
+
+        trace0 = go.Box(y=groupedList[0], name='Telling')
+        trace1 = go.Box(y=groupedList[1], name='Conversation')
+        layout = dict(title='VOCAL TEMPO BOXPLOT, NARRATOR',
+                      xaxis=dict(title='Interval'),
+                      yaxis=dict(title='Tempo'))
+        figData = [trace0, trace1]
+        fig = dict(data=figData, layout=layout)
+        py.plot(fig, filename='boxplot01.html', auto_open=True)
+
+
+
+        plt.suptitle('VOCAL TEMPO PDF')
+        plt.subplot(221)
+        plt.title('Narrator\nEDU')
+        plt.axis(xmax=1200,ymax=0.0040)
+        plt.ylabel('Probability')
+        sns.kdeplot(EDUgroupedN[0], bw=10, shade=True, vertical=False, gridsize=100, cumulative=False, label='Telling', color='green')
+        sns.kdeplot(EDUgroupedN[1], bw=10, shade=True, vertical=False, gridsize=100, cumulative=False, label='Conversation', color='blue')
+        plt.subplot(222)
+        plt.title('Reteller\nEDU')
+        plt.axis(xmax=1200,ymax=0.0040)
+        sns.kdeplot(EDUgroupedR[0], bw=10, shade=True, vertical=False, gridsize=100, cumulative=False, label='Conversation', color='blue')
+        sns.kdeplot(EDUgroupedR[1], bw=10, shade=True, vertical=False, gridsize=100, cumulative=False, label='Retelling', color='red')
+        #
+        plt.subplot(223)
+        plt.title('FRG')
+        plt.axis(xmax=1200,ymax=0.0040)
+        plt.xlabel('Tempo')
+        plt.ylabel('Probability')
+        sns.kdeplot(FRGgroupedN[0], bw=10, shade=True, vertical=False, gridsize=100, cumulative=False, label='Telling', color='green')
+        sns.kdeplot(FRGgroupedN[1], bw=10, shade=True, vertical=False, gridsize=100, cumulative=False, label='Conversation', color='blue')
+        plt.subplot(224)
+        plt.title('FRG')
+        plt.axis(xmax=1200,ymax=0.0040)
+        plt.xlabel('Tempo')
+        sns.kdeplot(FRGgroupedR[0], bw=10, shade=True, vertical=False, gridsize=100, cumulative=False, label='Conversation', color='blue')
+        sns.kdeplot(FRGgroupedR[1], bw=10, shade=True, vertical=False, gridsize=100, cumulative=False, label='Retelling', color='red')
+
+
+
+
+
+
+
 
 
     #TODO add ratio by index column to all groupings where id or id 2 present
@@ -699,19 +913,21 @@ class Stats():
     #TODO can factor out returned dataframes from multidata to special inherited and extended class, e.g. DataChannel
     #  который будет иметь hooks на методы обсчета статистики и возвращать нужные groupedby таблицы
     #  это позволит делать method chaining через точку
-    #TODO all channels go to single .xls in different sheets
-    def groupbyListAndDescribe(self, data:object, groupby:object, on:str) -> DataFrame:
+    def groupbyListAndDescribe(self, data:object, groupby:object, on:object) -> DataFrame:
         """Slices data on groupby, aggregates on column and adds some descriptive columns.
 
         :param data: Dataframe to slice.
         :param groupby: List of columns or str to groupby, can be empty.
-        :param on: Column to aggregate on.
+        :param on: Columns to aggregate on.
         :return: data slice.
         """
+        #TODO лучше всего вычислять метрики постолбцово, и потом просто join их всех - тогда нет мороки с сортировкой столбцов
         self.topWindow.logger.debug('group by list and describe')
         #data.fillna('<NA>',inplace=True)
         if type(groupby) is str:
             groupby=[groupby]
+        if type(on) is str:
+            on=[on]
 
         if len(groupby)==0:
             onned=data[on]
@@ -740,38 +956,77 @@ class Stats():
             #возвращаем порядок (интервалов) как был исходно (во второй таблице не работает)
             #sliced=sliced.reindex(index=onned.indices, copy=False)
             sliced.sort_index(inplace=True)
-            #
-            slicedCountRat = sliced['count'] / sliced['count'].sum()
-            slicedSumRat = sliced['sum'] / sliced['sum'].sum()
-            sliced.insert(1, 'count ratio', value=slicedCountRat)
-            sliced.insert(3, 'sum ratio', value=slicedSumRat)
+            #TODO FIXME что если уровень только 1
+            #2018.11.12 с учетом мультииндекса в столбцах
+            sliced = sliced.reorder_levels([1,0], axis=1)
+            sliced = sliced.reindex(labels=['count', 'sum', 'mean', 'std', 'min', 0.25, 0.5, 0.75, 'max'],
+                                    axis=1, level=0)
+            sliced = sliced.reindex(labels=on, axis=1, level=1)
+            #sliced.sort_index(axis=1, level=0, inplace=True, sort_remaining=False)
+            #FIXME что если уровень 1
+            slicedCountRat = pandas.concat([sliced['count'] / sliced['count'].sum()], keys=['count ratio'], axis=1)
+            slicedSumRat = pandas.concat([sliced['sum'] / sliced['sum'].sum()], keys=['sum ratio'], axis=1)
+            #sliced.insert(1, 'count ratio', value=slicedCountRat)
+            #sliced.insert(3, 'sum ratio', value=slicedSumRat)
+            sliced = sliced.join(slicedCountRat)
+            sliced = sliced.join(slicedSumRat)
+            #теперь сортируем
+            sliced = sliced.reindex(labels=['count', 'count ratio', 'sum', 'sum ratio', 'mean', 'std', 'min', 0.25, 0.5, 0.75, 'max'],
+                                    axis=1, level=0)
+            sliced = sliced.reindex(labels=on, axis=1, level=1)
             # считаем ratio от длительности интервала
             if ('Interval' in groupby) and (len(groupby) == 1):
                 #recordDur = self.settingsReader.totalDuration()
                 #for 'channels_appended' dataframes
                 recordDur = numpy.sum([Utils.parseTime(t) for row in grouped['Interval duration'].unique() for t in row]).total_seconds()
                 #не все интервалы могут присутствовать в срезе
-                #durs=[]
+                durs=[]
                 #FIXME hotfix
                 durs = [[Utils.parseTime(t) for t in row] for row in grouped['Interval duration'].unique()]
                 durs = [numpy.sum(parsed) for parsed in durs]
                 #for interval in list(sliced.index):
-                    #durs.append(self.settingsReader.getDurationById(interval))
-                durs=Series(durs)/numpy.timedelta64(1,'s')
+                #    durs.append(self.settingsReader.getDurationById(interval))
+                durs=pandas.concat([Series(durs)/numpy.timedelta64(1,'s')], keys=['interval duration'], axis=1)
                 durs.index = sliced.index
-                slicedSumRatByDur = sliced['sum'] / durs
-                sliced.insert(0, 'interval duration', value=durs)
-                sliced.insert(1, 'interval duration ratio', value=durs/recordDur)#.total_seconds())
-                sliced.insert(6, 'sum ratio by interval', value=slicedSumRatByDur)
+                dursDivided = pandas.concat([durs/recordDur], keys=['interval duration ratio'], axis=1)
+                slicedSumRatByDur = pandas.concat([sliced['sum'] / durs], keys=['sum ratio by interval'], axis=1)
+                #sliced.insert(0, 'interval duration', value=durs)
+                #FIXME need formatting index
+                #sliced = sliced.join(durs)
+                #sliced.insert(1, 'interval duration ratio', value=durs/recordDur)#.total_seconds())
+                #sliced = sliced.join(dursDivided)
+                #sliced.insert(6, 'sum ratio by interval', value=slicedSumRatByDur)
+                #sliced = sliced.join(slicedSumRatByDur)
+                sliced = sliced.reindex(labels=['count', 'count ratio', 'sum', 'sum ratio', 'mean', 'std', 'min', 0.25, 0.5, 0.75, 'max'],
+                                        axis=1, level=0)
+                sliced = sliced.reindex(labels=on, axis=1, level=1)
             #считаем ratio по интервалам
             elif ('Interval' in groupby or 'Id' in groupby or 'Id 2' in groupby) and (len(groupby)>1):
-                ints=[int for int, *level in list(sliced.index)]
-                slicedCountRatByInt=sliced['count'] / list(sliced['count'].groupby('Interval').sum()[ints])
-                slicedSumRatByInt = sliced['sum'] / list(sliced['sum'].groupby('Interval').sum()[ints])
-                sliced.insert(2, 'count ratio by interval', value=slicedCountRatByInt)
-                sliced.insert(5, 'sum ratio by interval', value=slicedSumRatByInt)
+                #2018.11.11 берем первую найденную категориальную переменную из заданного списка
+                #TODO можно добавить и другие, например, EDU, и можно сделать расчет ratio сразу по всем таким словам в каждой таблице
+                for word in ['Interval','Id','Id 2']:
+                    if word in groupby:
+                        break
+                #2018.11.12 not needed?
+                ints=sliced.index.get_level_values(word).tolist()   #[int for int, *level in list(sliced.index)]
+                #slicedCountRatByInt=pandas.concat([sliced['count'] / list(sliced['count'].groupby(word).sum()[ints])], keys=['count ratio by {0}'.format(word.lower())], axis=1)
+                colName1='count ratio by {0}'.format(word.lower())
+                slicedCountRatByInt=pandas.concat([sliced['count'] / sliced['count'].groupby(word).sum()], keys=[colName1], axis=1)
+                #slicedSumRatByInt = pandas.concat([sliced['sum'] / list(sliced['sum'].groupby(word).sum()[ints])], keys=['sum ratio by {0}'.format(word.lower())], axis=1)
+                colName2='sum ratio by {0}'.format(word.lower())
+                slicedSumRatByInt = pandas.concat([sliced['sum'] / sliced['sum'].groupby(word).sum()], keys=[colName2], axis=1)
+                #sliced.insert(2, 'count ratio by {0}'.format(word.lower()), value=slicedCountRatByInt)
+                sliced = sliced.join(slicedCountRatByInt)
+                #sliced.insert(5, 'sum ratio by {0}'.format(word.lower()), value=slicedSumRatByInt)
+                sliced = sliced.join(slicedSumRatByInt)
+                sliced = sliced.reindex(labels=['count', 'count ratio', colName1, 'sum', 'sum ratio', colName2, 'mean', 'std', 'min', 0.25, 0.5, 0.75, 'max'],
+                                        axis=1, level=0)
+                sliced = sliced.reindex(labels=on, axis=1, level=1)
 
 
+        # вносим описание таблицы
+        #self.groupedByNum = self.groupedByNum+1
+        sliced.description={'groupby':groupby, 'on':on} #'num':self.groupedByNum
         return sliced
 
 
@@ -820,14 +1075,17 @@ class Stats():
         """
         self.topWindow.logger.debug('save incrementally')
         if len(sheets) and len(data)!=len(sheets):
+            self.topWindow.setStatus('ERROR: Number of sheets specified does not match the data sequence.')
             raise ValueError
 
         writer=pandas.ExcelWriter(file)
         dfNum=0
-        startrow=0
+        dfNums={}
+        startrow=1
         startrows={}
         for sheet in sheets:
-            startrows[sheet]=0
+            dfNums[sheet]=0
+            startrows[sheet]=1
 
         for df in data:
             #st = Styler(df, precision=3)
@@ -835,23 +1093,35 @@ class Stats():
             #st.highlight_max()
             #st.highlight_min()
             #st.highlight_null()
+
+            if len(df.description['groupby']):
+                groupedByText = ', grouped by {0}'.format(str(df.description['groupby']).replace('[', '').replace(']', '').replace("'", ''))
+                rowDelta=5
+            else:
+                groupedByText = ''
+                rowDelta=3
+
             if len(sheets):
                 startrow=startrows[sheets[dfNum]]
+
                 df.to_excel(writer, startrow=startrow, sheet_name=sheets[dfNum])
+                workSheet = writer.sheets[sheets[dfNum]]
+                #workSheet.write(startrow-1, 0, 'Table {0}. {1}{2}'.format(dfNum+1, df.description['on'], groupedByText))
+                workSheet.write(startrow-1, 0, 'Table {0}({1})'.format(dfNums[sheets[dfNum]]+1, dfNum+1))
                 #st.to_excel(writer, startrow=startrow, sheet_name=sheets[dfNum])
-                startrows[sheets[dfNum]]=startrow+df.shape[0]+3
-                dfNum=dfNum+1
+                dfNums[sheets[dfNum]] = dfNums[sheets[dfNum]]+1
+                startrows[sheets[dfNum]]=startrow + df.shape[0] + rowDelta
             else:
                 if len(df):
                     self.topWindow.logger.debug('writing xls file')
                     df.to_excel(writer, startrow=startrow)
+                    workSheet = writer.sheets['Sheet1']
+                    #workSheet.write(startrow - 1, 0, 'Table {0}. {1}{2}'.format(dfNum+1, df.description['on'], groupedByText))
+                    workSheet.write(startrow - 1, 0, 'Table {0}'.format(dfNum+1))
                     #st.to_excel(writer, startrow=startrow)
-                    startrow = startrow + df.shape[0] + 3
+                    startrow = startrow + df.shape[0] + rowDelta
                 else:
                     self.topWindow.setStatus('WARNING: Empty table encountered in file {0}. Omitting from report.'.format(os.path.basename(file)))
+            dfNum = dfNum + 1
 
             writer.save()
-    #  tools=, tooltips=
-    #  figure.line(, line_color="#FF0000", line_width=8, alpha=0.7, legend="PDF")
-    #  figure.legend.location='center_right'
-    #  figure.legend.background_fill_color='darkgrey'

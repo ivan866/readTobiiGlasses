@@ -4,7 +4,6 @@ nltk
 numpy
 pandas>=0.21.1
 Pillow
-pygame
 pympi-ling>=1.69
 praatio
 scikit-kinematics>=0.7.3

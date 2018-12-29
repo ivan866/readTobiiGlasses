@@ -440,6 +440,12 @@ class DataReader():
                                                  'FRG': 'EventId'},
                                          axis='columns', inplace=True)
 
+                            #добавляем тип каждой строки, при этом если есть опечатки, то они будут видны в descriptive статистике
+                            sheet['EventType'] = sheet['EventId'].apply(lambda x: re.sub('.*mGe\d.*', 'Gesture', str(x))).\
+                                                                  apply(lambda x: re.sub('.*mGeS\d.*', 'GeStroke', str(x))).\
+                                                                  apply(lambda x: re.sub('.*tmpE\d.*', 'EDU', str(x))).\
+                                                                  apply(lambda x: re.sub('.*tmpF\d.*', 'FRG', str(x)))
+
                             #ставим timestamp на первое место - на это рассчитываюи многие функции в multidata.py
                             #переводим в секунды, как во всех остальных типах файлов
                             sheet.insert(0, 'Begin', sheet.pop('Begin').apply(lambda x: float(x.total_seconds())))
@@ -450,13 +456,18 @@ class DataReader():
 
                             #соединяем однородные листы в один dataframe
                             manuVocTempoSheets = manuVocTempoSheets.merge(sheet, how='outer', sort=True, copy=False)
+                            #на всякий случай убираем пробелы в конце или начале строк
+                            manuVocTempoSheets['EventId'] = manuVocTempoSheets['EventId'].str.strip()
                         elif k.lower() == 'ge-edu' or k.lower() == 'ges-frg':
                             sheet.rename(mapper={'Gesture': 'EventId', 'Ge':'EventId', 'GE':'EventId',
                                                  'GeS': 'EventId',
                                                  'EDU': 'RefId',
                                                  'FRG': 'RefId'},
                                          axis='columns', inplace=True)
+
                             manuVocRefTableSheets = manuVocRefTableSheets.merge(sheet, how='outer', sort=True, copy=False)
+                            manuVocRefTableSheets['EventId'] = manuVocRefTableSheets['EventId'].str.strip()
+                            manuVocRefTableSheets['RefId'] = manuVocRefTableSheets['RefId'].str.strip()
                 except ValueError:
                     self.topWindow.setStatus('WARNING: Probably incorrect Code or Rec values, or some non-uniform datablocks found in tables. Consider manual doublechecking your datafile.')
                     self.topWindow.reportError()
@@ -466,6 +477,7 @@ class DataReader():
                     raise
 
             else:
+                #FIXME all such [duplicate] messages can be replaced with raising a custom exception type
                 self.topWindow.setStatus('ERROR: File format unsupported.')
 
             multiData.setNode('manu-voc-tempo', fileElem.get('id'), manuVocTempoSheets, settingsReader.getRecordId())
